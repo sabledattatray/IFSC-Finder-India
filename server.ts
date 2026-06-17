@@ -419,6 +419,50 @@ async function startServer() {
     })).sort((a, b) => a.branchName.localeCompare(b.branchName)));
   });
 
+function getBankAliases(bankName: string): string {
+  const bank = bankName.toUpperCase();
+  const aliases: string[] = [];
+  if (bank.includes("STATE BANK OF INDIA")) aliases.push("SBI");
+  if (bank.includes("HDFC BANK")) {
+    aliases.push("HDFC");
+  } else if (bank.includes("HDFC")) {
+    aliases.push("HDFC");
+  }
+  if (bank.includes("ICICI BANK")) {
+    aliases.push("ICICI");
+  } else if (bank.includes("ICICI")) {
+    aliases.push("ICICI");
+  }
+  if (bank.includes("PUNJAB NATIONAL BANK")) aliases.push("PNB");
+  if (bank.includes("BANK OF BARODA")) aliases.push("BOB");
+  if (bank.includes("BANK OF INDIA") && !bank.includes("STATE BANK OF INDIA") && !bank.includes("UNION BANK OF INDIA") && !bank.includes("CENTRAL BANK OF INDIA")) aliases.push("BOI");
+  if (bank.includes("CENTRAL BANK OF INDIA")) aliases.push("CBI");
+  if (bank.includes("BANK OF MAHARASHTRA")) aliases.push("BOM");
+  if (bank.includes("UNION BANK OF INDIA")) aliases.push("UBI");
+  if (bank.includes("INDIAN OVERSEAS BANK")) aliases.push("IOB");
+  if (bank.includes("JAMMU AND KASHMIR") || bank.includes("JAMMU & KASHMIR")) aliases.push("JKB", "J&K", "J AND K");
+  if (bank.includes("SOUTH INDIAN BANK")) aliases.push("SIB");
+  if (bank.includes("INDIAN BANK") && !bank.includes("UNION BANK OF INDIA") && !bank.includes("STATE BANK OF INDIA") && !bank.includes("CENTRAL BANK OF INDIA")) aliases.push("IB");
+  if (bank.includes("CANARA BANK")) aliases.push("CB");
+  if (bank.includes("KOTAK MAHINDRA")) aliases.push("KOTAK");
+  if (bank.includes("COOPERATIVE") || bank.includes("CO-OPERATIVE")) aliases.push("COOP", "COOPERATIVE");
+  if (bank.includes("FEDERAL BANK")) aliases.push("FEDERAL");
+  if (bank.includes("YES BANK")) aliases.push("YES");
+  if (bank.includes("INDUSIND BANK")) aliases.push("INDUSIND");
+  if (bank.includes("UCO BANK")) aliases.push("UCO");
+  if (bank.includes("SIDBI")) aliases.push("SIDBI");
+  if (bank.includes("NABARD")) aliases.push("NABARD");
+  return aliases.join(" ");
+}
+
+function normalizeSearchText(str: string): string {
+  return str
+    .toUpperCase()
+    .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
   // Detailed IFSC search 
   app.get("/api/branch/:ifsc", (req, res) => {
     const ifsc = (req.params.ifsc || "").toUpperCase();
@@ -512,8 +556,10 @@ async function startServer() {
         }
       } else {
         // 2. Substring fallback for partial numbers or coordinates
+        const normQ = normalizeSearchText(q);
         for (const [ifsc, b] of ifscLookup.entries()) {
-          if (b.address.includes(q)) {
+          const normAddr = normalizeSearchText(b.address);
+          if (normAddr.includes(normQ)) {
             results.push({
               BANK: b.bank,
               BRANCH: b.branch,
@@ -538,9 +584,12 @@ async function startServer() {
       }
     } else {
       // General fuzzy split-keyword search across all relevant fields (bank, branch, address, city, district, state, pin)
-      const terms = q.split(/\s+/).filter(Boolean);
+      const normQuery = normalizeSearchText(q);
+      const terms = normQuery.split(/\s+/).filter(Boolean);
       for (const [ifsc, b] of ifscLookup.entries()) {
-        const searchStr = `${b.bank} ${b.branch} ${b.ifsc} ${b.address} ${b.cityVillage} ${b.district} ${b.state} ${b.pincode}`.toUpperCase();
+        const aliases = getBankAliases(b.bank);
+        const rawSearchStr = `${b.bank} ${aliases} ${b.branch} ${b.ifsc} ${b.address} ${b.cityVillage} ${b.district} ${b.state} ${b.pincode}`;
+        const searchStr = normalizeSearchText(rawSearchStr);
         let matchesAll = true;
         for (const term of terms) {
           if (!searchStr.includes(term)) {
