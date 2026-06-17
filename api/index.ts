@@ -158,7 +158,13 @@ function normalizeSearchText(str: string): string {
 
 function getCsvPath(): string {
   const filename = 'Bank_Data.csv';
-  const startPaths = [process.cwd(), safeDirname];
+  const startPaths = [
+    process.cwd(), 
+    safeDirname, 
+    typeof __dirname !== 'undefined' ? __dirname : '',
+    '/tmp'
+  ].filter(Boolean);
+  
   for (const base of startPaths) {
     let current = base;
     for (let i = 0; i < 6; i++) {
@@ -171,8 +177,8 @@ function getCsvPath(): string {
        current = parent;
     }
   }
-  // Fallback to absolute assumption just in case
-  return path.join(process.cwd(), filename);
+  // Fallback to /tmp if all else fails
+  return path.join('/tmp', filename);
 }
 
 // Function to load and index precomputed cascaded metadata on startup
@@ -180,10 +186,20 @@ async function loadDatabase() {
   console.log("Loading and indexing metadata from CSV...");
   const start = Date.now();
   try {
-    const csvPath = getCsvPath();
+    let csvPath = getCsvPath();
     if (!fs.existsSync(csvPath)) {
-      console.warn(`WARNING: Bank_Data.csv not found at ${csvPath}. Cannot preload metadata.`);
-      return;
+      console.warn(`WARNING: Bank_Data.csv not found locally. Attempting to download it to /tmp...`);
+      try {
+        const fetch = (await import("node-fetch")).default;
+        const res = await fetch("https://docs.google.com/spreadsheets/d/1H0cB4IsodVhx11WeZy4nIDzxK1t6aBVQ/export?format=csv");
+        const body = await res.text();
+        fs.writeFileSync("/tmp/Bank_Data.csv", body);
+        csvPath = "/tmp/Bank_Data.csv";
+        console.log("Download to /tmp complete!");
+      } catch (dlErr) {
+        console.error("Failed to download CSV dynamically:", dlErr);
+        return;
+      }
     }
 
     const rl = readline.createInterface({
