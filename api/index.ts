@@ -5,6 +5,7 @@ import readline from "readline";
 import "dotenv/config";
 import { GoogleGenAI, Type } from "@google/genai";
 import { fileURLToPath } from "url";
+import serverless from "serverless-http";
 
 // ESM-native directory resolution
 const safeDirname = path.dirname(fileURLToPath(import.meta.url));
@@ -651,4 +652,5 @@ Ground your answer carefully in Google Search results. If no bank branch exists 
   }
 });
 
-export default app;
+export { app };
+export default serverless(app);
