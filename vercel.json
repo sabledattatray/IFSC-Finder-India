@@ -2,10 +2,7 @@
   "version": 2,
   "functions": {
     "api/index.ts": {
-      "includeFiles": [
-        "public/*.json",
-        "Bank_Data.csv"
-      ]
+      "includeFiles": "{public/*.json,Bank_Data.csv}"
     }
   },
   "rewrites": [
