@@ -577,7 +577,7 @@ app.get("/api/online-search", async (req, res) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-1.5-flash",
       contents: `Search the web to find verified, authentic details for the bank branch matching query: "${q}".
 You MUST return a JSON list of matches containing as many of these fields as possible:
 BANK, BRANCH, IFSC, ADDRESS, CITY, STATE, DISTRICT, MICR (or N/A), CONTACT (or Not Provided), SWIFT (or N/A), IMPS (boolean, default true), NEFT (boolean, default true), RTGS (boolean, default true), UPI (boolean, default true).

@@ -3,7 +3,8 @@
   "functions": {
     "api/index.ts": {
       "includeFiles": [
-        "public/*.json"
+        "public/*.json",
+        "Bank_Data.csv"
       ]
     }
   },
