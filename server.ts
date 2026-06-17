@@ -892,7 +892,7 @@ Ground your answer carefully in Google Search results. If no bank branch exists 
 
   // Vite development / production fallback
   if (!process.env.VERCEL) {
-    if (process.env.DISABLE_HMR === 'true' || process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production") {
       const distPath = path.join(process.cwd(), 'dist');
       app.use(express.static(distPath));
       app.get('*', (req, res) => {
