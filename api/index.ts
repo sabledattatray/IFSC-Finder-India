@@ -7,8 +7,8 @@ import "dotenv/config";
 import { GoogleGenAI, Type } from "@google/genai";
 import { fileURLToPath } from "url";
 
-// ESM-native directory resolution
-const safeDirname = path.dirname(fileURLToPath(import.meta.url));
+// ESM-native directory resolution with CJS fallback for bundled output
+const safeDirname = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -271,6 +271,7 @@ async function loadDatabase() {
 
 let isDatabaseLoaded = false;
 let databaseLoadingPromise: Promise<void> | null = null;
+let globalBankRecords: BankRecord[] = [];
 
 function ensureDatabaseLoaded(): Promise<void> {
   if (isDatabaseLoaded) {
@@ -278,83 +279,87 @@ function ensureDatabaseLoaded(): Promise<void> {
   }
   if (!databaseLoadingPromise) {
     databaseLoadingPromise = loadDatabase().then(() => {
+      // Also load all records for fast memory queries
+      try {
+        const csvPath = getCsvPath();
+        if (fs.existsSync(csvPath)) {
+          console.log("Loading full database into memory for lightning fast search...");
+          const lines = fs.readFileSync(csvPath, "utf8").split(/\r?\n/);
+          for (let i = 1; i < lines.length; i++) {
+            const line = lines[i];
+            if (!line) continue;
+            const cols = parseCsvLine(line);
+            if (cols.length < 6) continue;
+            
+            const bankOriginal = cols[0] || "";
+            const ifsc = cols[1] || "";
+            const branch = cols[2] || "";
+            const address = cols[3] || "";
+            const pincode = cols[4] || "";
+            const state = cols[5] || "";
+            const districtOrig = cols[6] || "";
+            const contact = cols[7] || "";
+            const imps = (cols[8] || "").toUpperCase() === "TRUE";
+            const rtgs = (cols[9] || "").toUpperCase() === "TRUE";
+            const cityNew = cols[10] || "";
+            const neft = (cols[12] || "").toUpperCase() === "TRUE";
+            const micr = cols[13] || "";
+            const upi = (cols[14] || "").toUpperCase() === "TRUE";
+            const swift = cols[15] || "";
+
+            const bankUp = bankOriginal.toUpperCase();
+            const branchUp = branch.toUpperCase();
+            const districtUp = districtOrig ? districtOrig.toUpperCase() : "GENERAL";
+            const cityUp = cityNew ? cityNew.toUpperCase() : getCityVillage(address, branchUp, districtUp);
+
+            const aliases = getBankAliases(bankUp);
+            const rawSearchStr = `${bankUp} ${aliases} ${branchUp} ${ifsc} ${address} ${cityUp} ${districtUp} ${state} ${pincode}`;
+
+            globalBankRecords.push({
+              bank: bankUp,
+              ifsc: ifsc.toUpperCase(),
+              branch: branchUp,
+              address,
+              city: cityUp, // keep original usage for compatibility
+              state: state.toUpperCase(),
+              district: districtUp,
+              taluka: getTaluka(address, branchUp, cityUp),
+              cityVillage: cityUp,
+              pincode,
+              contact,
+              micr,
+              swift,
+              imps,
+              neft,
+              rtgs,
+              upi,
+              searchStrReady: normalizeSearchText(rawSearchStr)
+            });
+          }
+          console.log(`Loaded ${globalBankRecords.length} records into memory.`);
+        }
+      } catch (err) {
+        console.error("Failed to load records into memory:", err);
+      }
       isDatabaseLoaded = true;
     });
   }
   return databaseLoadingPromise;
 }
 
-// Helper to stream through CSV and return matching records with early breaking limit
+// Memory-backed fast query
 async function queryCsvStream(filterFn: (record: BankRecord) => boolean, limit: number = 100): Promise<any[]> {
   const csvPath = getCsvPath();
-  if (!fs.existsSync(csvPath)) {
+  if (!fs.existsSync(csvPath) && globalBankRecords.length === 0) {
     console.error(`ERROR: Bank_Data.csv not found at ${csvPath}`);
     return [];
   }
 
   const results: any[] = [];
-  const fileStream = fs.createReadStream(csvPath);
-  const rl = readline.createInterface({
-    input: fileStream,
-    crlfDelay: Infinity
-  });
-
-  let lineCount = 0;
-  for await (const line of rl) {
-    if (lineCount === 0) {
-      lineCount++;
-      continue; // skip header
-    }
-    try {
-      const cols = parseCsvLine(line);
-      if (cols.length < 6) continue;
-
-      const bankNameOriginal = cols[0] || "";
-      const ifscCode = cols[1] || "";
-      const branchName = cols[2] || "";
-      const address = cols[3] || "";
-      const pincode = cols[4] || "";
-      const stateOriginal = cols[5] || "";
-      const districtOriginal = cols[6] || "";
-      const contact = cols[7] || "";
-      const imps = (cols[8] || "").toUpperCase() === "TRUE";
-      const rtgs = (cols[9] || "").toUpperCase() === "TRUE";
-      const cityNew = cols[10] || "";
-      const neft = (cols[12] || "").toUpperCase() === "TRUE";
-      const micr = cols[13] || "";
-      const upi = (cols[14] || "").toUpperCase() === "TRUE";
-      const swift = cols[15] || "";
-
-      const bank = bankNameOriginal.toUpperCase();
-      const ifsc = ifscCode.toUpperCase();
-      const branch = branchName.toUpperCase();
-      const state = stateOriginal.toUpperCase();
-      const district = districtOriginal ? districtOriginal.toUpperCase() : "GENERAL";
-      const cityVillage = cityNew ? cityNew.toUpperCase() : getCityVillage(address, branch, district);
-      const taluka = getTaluka(address, branch, cityVillage);
-
-      const rec: BankRecord = {
-        bank,
-        ifsc,
-        branch,
-        address,
-        city: district,
-        state,
-        district,
-        taluka,
-        cityVillage,
-        pincode,
-        contact,
-        micr,
-        swift,
-        imps,
-        neft,
-        rtgs,
-        upi,
-        searchStrReady: ""
-      };
-
-      if (filterFn(rec)) {
+  
+  for (let i = 0; i < globalBankRecords.length; i++) {
+    const rec = globalBankRecords[i];
+    if (filterFn(rec)) {
         results.push({
           BANK: rec.bank,
           BRANCH: rec.branch,
@@ -376,13 +381,9 @@ async function queryCsvStream(filterFn: (record: BankRecord) => boolean, limit: 
         if (results.length >= limit) {
           break;
         }
-      }
-    } catch {
-      // Ignore corrupted rows
     }
-    lineCount++;
   }
-  fileStream.destroy();
+
   return results;
 }
 

@@ -2,7 +2,7 @@
   "version": 2,
   "functions": {
     "api/index.ts": {
-      "includeFiles": "{Bank_Data.csv}",
+      "includeFiles": "Bank_Data.csv",
       "maxDuration": 60
     }
   },
