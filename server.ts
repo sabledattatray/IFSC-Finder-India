@@ -167,15 +167,59 @@ function normalizeSearchText(str: string): string {
     .trim();
 }
 
+// Targeted string pools for repetitive fields to save memory on Cloud Run
+const poolBank = new Map<string, string>();
+const poolState = new Map<string, string>();
+const poolDistrict = new Map<string, string>();
+const poolTaluka = new Map<string, string>();
+const poolCity = new Map<string, string>();
+
+function internBank(s: string): string {
+  if (!s) return "";
+  let v = poolBank.get(s);
+  if (v === undefined) { poolBank.set(s, s); return s; }
+  return v;
+}
+function internState(s: string): string {
+  if (!s) return "";
+  let v = poolState.get(s);
+  if (v === undefined) { poolState.set(s, s); return s; }
+  return v;
+}
+function internDistrict(s: string): string {
+  if (!s) return "";
+  let v = poolDistrict.get(s);
+  if (v === undefined) { poolDistrict.set(s, s); return s; }
+  return v;
+}
+function internTaluka(s: string): string {
+  if (!s) return "";
+  let v = poolTaluka.get(s);
+  if (v === undefined) { poolTaluka.set(s, s); return s; }
+  return v;
+}
+function internCity(s: string): string {
+  if (!s) return "";
+  let v = poolCity.get(s);
+  if (v === undefined) { poolCity.set(s, s); return s; }
+  return v;
+}
+
 // Function to load and index the 173,000+ branch records on startup
 async function loadDatabase() {
-  const csvPath = path.join(process.cwd(), 'Bank_Data.csv');
+  let csvPath = path.join(process.cwd(), 'Bank_Data.csv');
   if (!fs.existsSync(csvPath)) {
-    console.error(`ERROR: Bank_Data.csv not found at ${csvPath}`);
+    csvPath = path.join(__dirname, 'Bank_Data.csv');
+  }
+  if (!fs.existsSync(csvPath)) {
+    csvPath = path.join(__dirname, '..', 'Bank_Data.csv');
+  }
+  if (!fs.existsSync(csvPath)) {
+    console.error(`ERROR: Bank_Data.csv not found. Searched multiple paths.`);
     return;
   }
 
-  console.log("Loading & Indexing Bank Master Database with state-district-taluka hierarchy...");
+  console.log(`Loading & Indexing Bank Master Database from ${csvPath}...`);
   const start = Date.now();
 
   const fileStream = fs.createReadStream(csvPath);
@@ -192,114 +236,123 @@ async function loadDatabase() {
       lineCount++;
       continue; // Skip headers
     }
-    const cols = parseCsvLine(line);
-    if (cols.length < 6) continue;
-
-    const bankNameOriginal = cols[0] || "";
-    const ifscCode = cols[1] || "";
-    const branchName = cols[2] || "";
-    const address = cols[3] || "";
-    const pincode = cols[4] || "";
-    const stateOriginal = cols[5] || "";
-    const districtOriginal = cols[6] || "";
-    const contact = cols[7] || "";
-    const imps = (cols[8] || "").toUpperCase() === "TRUE";
-    const rtgs = (cols[9] || "").toUpperCase() === "TRUE";
-    const cityNew = cols[10] || "";
-    const iso3166 = cols[11] || "";
-    const neft = (cols[12] || "").toUpperCase() === "TRUE";
-    const micr = cols[13] || "";
-    const upi = (cols[14] || "").toUpperCase() === "TRUE";
-    const swift = cols[15] || "";
     
-    const bank = bankNameOriginal.toUpperCase();
-    const ifsc = ifscCode.toUpperCase();
-    const branch = branchName.toUpperCase();
-    const state = stateOriginal.toUpperCase();
-    const district = districtOriginal ? districtOriginal.toUpperCase() : "GENERAL";
-    const cityVillage = cityNew ? cityNew.toUpperCase() : getCityVillage(address, branch, district);
+    try {
+      const cols = parseCsvLine(line);
+      if (cols.length < 6) continue;
 
-    // Determine derived fields
-    const taluka = getTaluka(address, branch, cityVillage);
+      const bankNameOriginal = cols[0] || "";
+      const ifscCode = cols[1] || "";
+      const branchName = cols[2] || "";
+      const address = cols[3] || "";
+      const pincode = cols[4] || "";
+      const stateOriginal = cols[5] || "";
+      const districtOriginal = cols[6] || "";
+      const contact = cols[7] || "";
+      const imps = (cols[8] || "").toUpperCase() === "TRUE";
+      const rtgs = (cols[9] || "").toUpperCase() === "TRUE";
+      const cityNew = cols[10] || "";
+      const iso3166 = cols[11] || "";
+      const neft = (cols[12] || "").toUpperCase() === "TRUE";
+      const micr = cols[13] || "";
+      const upi = (cols[14] || "").toUpperCase() === "TRUE";
+      const swift = cols[15] || "";
+      
+      const bank = internBank(bankNameOriginal.toUpperCase());
+      const ifsc = ifscCode.toUpperCase();
+      const branch = branchName.toUpperCase();
+      const state = internState(stateOriginal.toUpperCase());
+      const district = internDistrict(districtOriginal ? districtOriginal.toUpperCase() : "GENERAL");
+      const cityVillage = internCity(cityNew ? cityNew.toUpperCase() : getCityVillage(address, branch, district));
 
-    const aliases = getBankAliases(bank);
-    const rawSearchStr = `${bank} ${aliases} ${branch} ${ifsc} ${address} ${cityVillage} ${district} ${state} ${pincode}`;
-    const searchStrReady = normalizeSearchText(rawSearchStr);
+      // Determine derived fields
+      const taluka = internTaluka(getTaluka(address, branch, cityVillage));
 
-    const record: BankRecord = {
-      bank,
-      ifsc,
-      branch,
-      address,
-      city: district,
-      state,
-      district,
-      taluka,
-      cityVillage,
-      pincode,
-      contact,
-      micr,
-      swift,
-      imps,
-      neft,
-      rtgs,
-      upi,
-      searchStrReady
-    };
+      const aliases = getBankAliases(bank);
+      const rawSearchStr = `${bank} ${aliases} ${branch} ${ifsc} ${address} ${cityVillage} ${district} ${state} ${pincode}`;
+      const searchStrReady = normalizeSearchText(rawSearchStr);
 
-    // Store in global maps
-    ifscLookup.set(ifsc, record);
+      const record: BankRecord = {
+        bank,
+        ifsc,
+        branch,
+        address,
+        city: district,
+        state,
+        district,
+        taluka,
+        cityVillage,
+        pincode,
+        contact,
+        micr,
+        swift,
+        imps,
+        neft,
+        rtgs,
+        upi,
+        searchStrReady
+      };
 
-    statesSet.add(state);
+      // Store in global maps
+      ifscLookup.set(ifsc, record);
 
-    // 1. State -> Districts Map
-    if (!stateToDistricts.has(state)) {
-      stateToDistricts.set(state, new Set());
-    }
-    stateToDistricts.get(state)!.add(district);
+      statesSet.add(state);
 
-    // 2. District -> Talukas Map
-    const stateDistKey = `${state}||${district}`;
-    if (!districtToTalukas.has(stateDistKey)) {
-      districtToTalukas.set(stateDistKey, new Set());
-    }
-    districtToTalukas.get(stateDistKey)!.add(taluka);
-
-    // 3. Taluka -> Cities/Villages Map
-    const stateDistTalKey = `${state}||${district}||${taluka}`;
-    if (!talukaToCities.has(stateDistTalKey)) {
-      talukaToCities.set(stateDistTalKey, new Set());
-    }
-    talukaToCities.get(stateDistTalKey)!.add(cityVillage);
-
-    // 4. City/Village -> Banks Map
-    const stateDistTalCityKey = `${state}||${district}||${taluka}||${cityVillage}`;
-    if (!cityToBanks.has(stateDistTalCityKey)) {
-      cityToBanks.set(stateDistTalCityKey, new Set());
-    }
-    cityToBanks.get(stateDistTalCityKey)!.add(bank);
-
-    // 5. Cascade to Branches list
-    const stateDistTalCityBankKey = `${state}||${district}||${taluka}||${cityVillage}||${bank}`;
-    if (!cascadeToBranches.has(stateDistTalCityBankKey)) {
-      cascadeToBranches.set(stateDistTalCityBankKey, []);
-    }
-    cascadeToBranches.get(stateDistTalCityBankKey)!.push(record);
-
-    // Speed up pincode index using explicit PINCODE column or regex fallback
-    if (pincode && /^\d+$/.test(pincode)) {
-      if (!pincodeToRecords.has(pincode)) {
-        pincodeToRecords.set(pincode, []);
+      // 1. State -> Districts Map
+      if (!stateToDistricts.has(state)) {
+        stateToDistricts.set(state, new Set());
       }
-      pincodeToRecords.get(pincode)!.push(record);
-    } else {
-      const pinMatch = address.match(/\b\d{6}\b/);
-      if (pinMatch) {
-        const pin = pinMatch[0];
-        if (!pincodeToRecords.has(pin)) {
-          pincodeToRecords.set(pin, []);
+      stateToDistricts.get(state)!.add(district);
+
+      // 2. District -> Talukas Map
+      const stateDistKey = internCity(`${state}||${district}`);
+      if (!districtToTalukas.has(stateDistKey)) {
+        districtToTalukas.set(stateDistKey, new Set());
+      }
+      districtToTalukas.get(stateDistKey)!.add(taluka);
+
+      // 3. Taluka -> Cities/Villages Map
+      const stateDistTalKey = internCity(`${state}||${district}||${taluka}`);
+      if (!talukaToCities.has(stateDistTalKey)) {
+        talukaToCities.set(stateDistTalKey, new Set());
+      }
+      talukaToCities.get(stateDistTalKey)!.add(cityVillage);
+
+      // 4. City/Village -> Banks Map
+      const stateDistTalCityKey = internCity(`${state}||${district}||${taluka}||${cityVillage}`);
+      if (!cityToBanks.has(stateDistTalCityKey)) {
+        cityToBanks.set(stateDistTalCityKey, new Set());
+      }
+      cityToBanks.get(stateDistTalCityKey)!.add(bank);
+
+      // 5. Cascade to Branches list
+      const stateDistTalCityBankKey = internCity(`${state}||${district}||${taluka}||${cityVillage}||${bank}`);
+      if (!cascadeToBranches.has(stateDistTalCityBankKey)) {
+        cascadeToBranches.set(stateDistTalCityBankKey, []);
+      }
+      cascadeToBranches.get(stateDistTalCityBankKey)!.push(record);
+
+      // Speed up pincode index using explicit PINCODE column or regex fallback
+      if (pincode && /^\d+$/.test(pincode)) {
+        if (!pincodeToRecords.has(pincode)) {
+          pincodeToRecords.set(pincode, []);
         }
-        pincodeToRecords.get(pin)!.push(record);
+        pincodeToRecords.get(pincode)!.push(record);
+      } else {
+        const pinMatch = address.match(/\b\d{6}\b/);
+        if (pinMatch) {
+          const pin = pinMatch[0];
+          if (!pincodeToRecords.has(pin)) {
+            pincodeToRecords.set(pin, []);
+          }
+          pincodeToRecords.get(pin)!.push(record);
+        }
+      }
+    } catch (lineErr) {
+      // Gracefully capture any corrupted row error and keep indexing the remainders
+      // Avoid log-flooding, just count or log occasionally
+      if (lineCount % 10000 === 0) {
+        console.error(`Skipped malformed line at ${lineCount}:`, lineErr);
       }
     }
 

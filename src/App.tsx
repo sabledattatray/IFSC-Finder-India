@@ -1,4 +1,4 @@
-import { useState, FormEvent, useEffect } from 'react';
+import { useState, FormEvent, useEffect, useRef } from 'react';
 import { Search, Clock, Star, Copy, FileText, CheckCircle2, ChevronRight, Share2, MapPin, Building, Globe, Activity, Map, Navigation, Database, Phone, Mail, Box, Shield, Calendar, Calculator, Bookmark, RotateCcw, ChevronDown, Check, X } from 'lucide-react';
 
 // Custom Portal Components
@@ -53,6 +53,7 @@ function SearchableSelect({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Synchronize searchQuery with current value's label when dropdown is closed or value changes
   useEffect(() => {
@@ -66,13 +67,40 @@ function SearchableSelect({
     }
   }, [value, options, allOptionText]);
 
+  // Close dropdown gracefully when clicking outside options container
+  useEffect(() => {
+    if (!isOpen) return;
+
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        // Reset query status to match selected
+        const selectedOpt = options.find(o => o.value === value);
+        if (selectedOpt) {
+          setSearchQuery(selectedOpt.label);
+        } else if (value === 'ALL') {
+          setSearchQuery(allOptionText || 'All');
+        } else {
+          setSearchQuery('');
+        }
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("touchstart", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("touchstart", handleClickOutside);
+    };
+  }, [isOpen, value, options, allOptionText]);
+
   const filteredOptions = options.filter(opt =>
     opt.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
     opt.value.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
-    <div className="flex flex-col gap-1 w-full relative">
+    <div ref={containerRef} className="flex flex-col gap-1 w-full relative">
       <div className="flex justify-between items-center px-1">
         <label className="text-[11px] font-bold text-[#8B949E] uppercase tracking-wider">{label}</label>
         {value && (
@@ -134,62 +162,45 @@ function SearchableSelect({
         </div>
 
         {isOpen && !disabled && (
-          <>
-            <div 
-              className="fixed inset-0 z-10" 
-              onClick={() => {
-                setIsOpen(false);
-                // Reset search query to match actual selected value label
-                const selectedOpt = options.find(o => o.value === value);
-                if (selectedOpt) {
-                  setSearchQuery(selectedOpt.label);
-                } else if (value === 'ALL') {
-                  setSearchQuery(allOptionText || 'All');
-                } else {
-                  setSearchQuery('');
-                }
-              }}
-            />
-            <div className="absolute left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-[#161B22] border border-[#30363D] rounded-md shadow-xl z-20 py-1">
-              {allOptionText && (
+          <div className="absolute left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-[#161B22] border border-[#30363D] rounded-md shadow-xl z-20 py-1">
+            {allOptionText && (
+              <button
+                onClick={() => {
+                  onChange('ALL');
+                  setSearchQuery(allOptionText);
+                  setIsOpen(false);
+                }}
+                type="button"
+                className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer focus:outline-none
+                  ${value === 'ALL' ? 'bg-[#1F242C] text-[#58A6FF] font-medium' : 'text-[#C9D1D9] hover:bg-[#21262D]'}`}
+              >
+                <span>{allOptionText}</span>
+                {value === 'ALL' && <Check className="w-4 h-4" />}
+              </button>
+            )}
+            {filteredOptions.length === 0 ? (
+              <div className="px-3 py-2 text-xs text-[#8B949E] italic">
+                No matching options found
+              </div>
+            ) : (
+              filteredOptions.map((opt) => (
                 <button
+                  key={opt.value}
                   onClick={() => {
-                    onChange('ALL');
-                    setSearchQuery(allOptionText);
+                    onChange(opt.value);
+                    setSearchQuery(opt.label);
                     setIsOpen(false);
                   }}
                   type="button"
                   className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer focus:outline-none
-                    ${value === 'ALL' ? 'bg-[#1F242C] text-[#58A6FF] font-medium' : 'text-[#C9D1D9] hover:bg-[#21262D]'}`}
+                    ${value === opt.value ? 'bg-[#1F242C] text-[#58A6FF] font-medium' : 'text-[#C9D1D9] hover:bg-[#21262D]'}`}
                 >
-                  <span>{allOptionText}</span>
-                  {value === 'ALL' && <Check className="w-4 h-4" />}
+                  <span className="truncate pr-4">{opt.label}</span>
+                  {value === opt.value && <Check className="w-4 h-4" />}
                 </button>
-              )}
-              {filteredOptions.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-[#8B949E] italic">
-                  No matching options found
-                </div>
-              ) : (
-                filteredOptions.map((opt) => (
-                  <button
-                    key={opt.value}
-                    onClick={() => {
-                      onChange(opt.value);
-                      setSearchQuery(opt.label);
-                      setIsOpen(false);
-                    }}
-                    type="button"
-                    className={`w-full text-left px-3 py-2 text-sm transition-colors flex items-center justify-between cursor-pointer focus:outline-none
-                      ${value === opt.value ? 'bg-[#1F242C] text-[#58A6FF] font-medium' : 'text-[#C9D1D9] hover:bg-[#21262D]'}`}
-                  >
-                    <span className="truncate pr-4">{opt.label}</span>
-                    {value === opt.value && <Check className="w-4 h-4" />}
-                  </button>
-                ))
-              )}
-            </div>
-          </>
+              ))
+            )}
+          </div>
         )}
       </div>
     </div>
