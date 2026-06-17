@@ -1,4 +1,5 @@
 import express from "express";
+import serverless from "serverless-http";
 import path from "path";
 import fs from "fs";
 import readline from "readline";
@@ -652,4 +653,4 @@ Ground your answer carefully in Google Search results. If no bank branch exists 
 });
 
 export { app };
-export default app;
+export default serverless(app);
