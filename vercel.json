@@ -1,5 +1,10 @@
 {
   "version": 2,
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "Bank_Data.csv"
+    }
+  },
   "rewrites": [
     {
       "source": "/api/:path*",

@@ -5,6 +5,15 @@ import readline from "readline";
 import { createServer as createViteServer } from "vite";
 import "dotenv/config";
 import { GoogleGenAI, Type } from "@google/genai";
+import { fileURLToPath } from "url";
+
+// Dual ESM/CJS compatibility for directory resolution
+let safeDirname = "";
+try {
+  safeDirname = __dirname;
+} catch {
+  safeDirname = path.dirname(fileURLToPath(import.meta.url));
+}
 
 const app = express();
 const PORT = 3000;
@@ -211,10 +220,10 @@ function internCity(s: string): string {
 async function loadDatabase() {
   let csvPath = path.join(process.cwd(), 'Bank_Data.csv');
   if (!fs.existsSync(csvPath)) {
-    csvPath = path.join(__dirname, 'Bank_Data.csv');
+    csvPath = path.join(safeDirname, 'Bank_Data.csv');
   }
   if (!fs.existsSync(csvPath)) {
-    csvPath = path.join(__dirname, '..', 'Bank_Data.csv');
+    csvPath = path.join(safeDirname, '..', 'Bank_Data.csv');
   }
   if (!fs.existsSync(csvPath)) {
     console.error(`ERROR: Bank_Data.csv not found. Searched multiple paths.`);
@@ -418,6 +427,26 @@ async function startServer() {
     } else {
       next();
     }
+  });
+
+  // Diagnostic Endpoint to troubleshoot database and env status on the live container
+  app.get("/api/debug-status", (req, res) => {
+    res.json({
+      statesCount: statesList.length,
+      isLoaded: isDatabaseLoaded,
+      cwd: process.cwd(),
+      dirname: safeDirname,
+      csvExistsInCwd: fs.existsSync(path.join(process.cwd(), 'Bank_Data.csv')),
+      csvExistsInDirname: fs.existsSync(path.join(safeDirname, 'Bank_Data.csv')),
+      csvExistsInParent: fs.existsSync(path.join(safeDirname, '..', 'Bank_Data.csv')),
+      envNodeEnv: process.env.NODE_ENV,
+      envVercel: process.env.VERCEL,
+      geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+      ifscLookupCount: ifscLookup.size,
+      pincodeIndexCount: pincodeToRecords.size,
+      micrIndexCount: micrLookup.size,
+      swiftIndexCount: swiftLookup.size
+    });
   });
 
   // API Endpoints for UI Droplist cascades
