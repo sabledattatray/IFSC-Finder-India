@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#58A6FF" />
+      <stop offset="100%" stop-color="#1F6FEB" />
+    </linearGradient>
+    <linearGradient id="rupeeGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7EE787" />
+      <stop offset="100%" stop-color="#56D364" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FF7B72" />
+      <stop offset="100%" stop-color="#F85149" />
+    </linearGradient>
+  </defs>
+  <!-- Background circle -->
+  <rect width="512" height="512" rx="140" fill="#0D1117"/>
+  
+  <!-- Outer glowing ring -->
+  <rect x="24" y="24" width="464" height="464" rx="116" fill="none" stroke="url(#shieldGrad)" stroke-width="12" opacity="0.4"/>
+  
+  <!-- Stylized Indian Temple / Bank Building representing IFSC stability & trust -->
+  <g transform="translate(16, 16)">
+    <!-- Roof pediment -->
+    <path d="M240 100 L390 190 L90 190 Z" fill="url(#accentGrad)" stroke="#161B22" stroke-width="4" stroke-linejoin="round"/>
+    
+    <!-- Heavy core base -->
+    <path d="M96 350 L384 350 L384 394 L96 394 Z" fill="#E6EDF3"/>
+    
+    <!-- Bank pillars -->
+    <rect x="120" y="210" width="30" height="140" rx="8" fill="#58A6FF" opacity="0.9"/>
+    <rect x="225" y="210" width="30" height="140" rx="8" fill="#58A6FF" opacity="0.9"/>
+    <rect x="330" y="210" width="30" height="140" rx="8" fill="#58A6FF" opacity="0.9"/>
+    
+    <!-- Central Shield / Rupee Seal -->
+    <circle cx="240" cy="270" r="54" fill="#0D1117" stroke="url(#rupeeGrad)" stroke-width="10"/>
+    
+    <!-- Elegant ₹ Glyph inside the inner circle -->
+    <path d="M220 240 L260 240 M220 252 L260 252" stroke="url(#rupeeGrad)" stroke-width="8" stroke-linecap="round"/>
+    <path d="M220 240 Q258 240 258 266 Q258 290 220 290" fill="none" stroke="url(#rupeeGrad)" stroke-width="8" stroke-linecap="round"/>
+    <path d="M236 290 L260 314" stroke="url(#rupeeGrad)" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
