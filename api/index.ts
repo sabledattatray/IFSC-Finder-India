@@ -6,13 +6,8 @@ import "dotenv/config";
 import { GoogleGenAI, Type } from "@google/genai";
 import { fileURLToPath } from "url";
 
-// Dual ESM/CJS compatibility for directory resolution
-let safeDirname = "";
-try {
-  safeDirname = __dirname;
-} catch {
-  safeDirname = path.dirname(fileURLToPath(import.meta.url));
-}
+// ESM-native directory resolution
+const safeDirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
