@@ -1,6 +1,31 @@
 <!doctype html>
 <html lang="en">
   <head>
+    <script>
+      // Instantly suppress benign Vite/HMR WebSocket connection errors before any bundle files load
+      (function() {
+        function isBenignError(msg) {
+          if (!msg) return false;
+          var s = String(msg).toLowerCase();
+          return s.indexOf('websocket') !== -1 || s.indexOf('vite') !== -1 || s.indexOf('hmr') !== -1 || s.indexOf('ws') !== -1;
+        }
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = event.reason;
+          var msg = (reason && (reason.message || reason)) || '';
+          if (isBenignError(msg)) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        });
+        window.addEventListener('error', function(event) {
+          var msg = event.message || '';
+          if (isBenignError(msg) || (event.error && isBenignError(event.error.message))) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+        }, true);
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     
