@@ -157,52 +157,115 @@ function normalizeSearchText(str: string): string {
 }
 
 function getCsvPath(): string {
-  let csvPath = path.join(process.cwd(), 'Bank_Data.csv');
-  if (!fs.existsSync(csvPath)) {
-    csvPath = path.join(safeDirname, 'Bank_Data.csv');
+  const filename = 'Bank_Data.csv';
+  const startPaths = [process.cwd(), safeDirname];
+  for (const base of startPaths) {
+    let current = base;
+    for (let i = 0; i < 6; i++) {
+       const p = path.join(current, filename);
+       if (fs.existsSync(p)) return p;
+       const p2 = path.join(current, "public", filename);
+       if (fs.existsSync(p2)) return p2;
+       const parent = path.dirname(current);
+       if (parent === current) break;
+       current = parent;
+    }
   }
-  if (!fs.existsSync(csvPath)) {
-    csvPath = path.join(safeDirname, '..', 'Bank_Data.csv');
-  }
-  if (!fs.existsSync(csvPath)) {
-    csvPath = path.join(safeDirname, '..', '..', 'Bank_Data.csv');
-  }
-  return csvPath;
+  // Fallback to absolute assumption just in case
+  return path.join(process.cwd(), filename);
 }
 
 // Function to load and index precomputed cascaded metadata on startup
 async function loadDatabase() {
-  console.log("Loading Pre-Compiled Bank cascades...");
+  console.log("Loading and indexing metadata from CSV...");
   const start = Date.now();
   try {
-    const locateFile = (name: string) => {
-      const paths = [
-        path.join(process.cwd(), "public", name),
-        path.join(safeDirname, "public", name),
-        path.join(safeDirname, "..", "public", name),
-        path.join(safeDirname, "..", "..", "public", name),
-        path.join(process.cwd(), name),
-        path.join(safeDirname, name)
-      ];
-      for (const p of paths) {
-        if (fs.existsSync(p)) return p;
-      }
-      return path.join(process.cwd(), "public", name); // default
-    };
-
-    const statesPath = locateFile("states.json");
-    if (fs.existsSync(statesPath)) {
-      statesList = JSON.parse(fs.readFileSync(statesPath, "utf8"));
-      stateToDistrictsObj = JSON.parse(fs.readFileSync(locateFile("state-districts.json"), "utf8"));
-      districtToTalukasObj = JSON.parse(fs.readFileSync(locateFile("district-talukas.json"), "utf8"));
-      talukaToCitiesObj = JSON.parse(fs.readFileSync(locateFile("taluka-cities.json"), "utf8"));
-      cityToBanksObj = JSON.parse(fs.readFileSync(locateFile("city-banks.json"), "utf8"));
-      console.log(`Cascading lookup metadata loaded in ${Date.now() - start}ms! (cold starts cured)`);
-    } else {
-      console.warn("WARNING: Precomputed static index.json files not found during startup. Degrading gracefully.");
+    const csvPath = getCsvPath();
+    if (!fs.existsSync(csvPath)) {
+      console.warn(`WARNING: Bank_Data.csv not found at ${csvPath}. Cannot preload metadata.`);
+      return;
     }
+
+    const rl = readline.createInterface({
+      input: fs.createReadStream(csvPath),
+      crlfDelay: Infinity
+    });
+
+    const statesSet = new Set<string>();
+    const stateDistricts = new Map<string, Set<string>>();
+    const districtTalukas = new Map<string, Set<string>>();
+    const talukaCities = new Map<string, Set<string>>();
+    const cityBanks = new Map<string, Set<string>>();
+
+    let lineCount = 0;
+    for await (const line of rl) {
+      if (lineCount === 0) {
+        lineCount++;
+        continue;
+      }
+      const cols = parseCsvLine(line);
+      if (cols.length < 6) continue;
+
+      const bankNameOriginal = cols[0] || "";
+      const branchName = cols[2] || "";
+      const address = cols[3] || "";
+      const stateOriginal = cols[5] || "";
+      const districtOriginal = cols[6] || "";
+      const cityNew = cols[10] || "";
+
+      const bank = bankNameOriginal.toUpperCase();
+      const branch = branchName.toUpperCase();
+      const state = stateOriginal.toUpperCase();
+      const district = districtOriginal ? districtOriginal.toUpperCase() : "GENERAL";
+      const cityVillage = cityNew ? cityNew.toUpperCase() : getCityVillage(address, branch, district);
+      const taluka = getTaluka(address, branch, cityVillage);
+
+      if (state) {
+        statesSet.add(state);
+        if (!stateDistricts.has(state)) stateDistricts.set(state, new Set());
+        stateDistricts.get(state)!.add(district);
+      }
+      if (district) {
+        if (!districtTalukas.has(district)) districtTalukas.set(district, new Set());
+        districtTalukas.get(district)!.add(taluka);
+      }
+      if (taluka) {
+        if (!talukaCities.has(taluka)) talukaCities.set(taluka, new Set());
+        talukaCities.get(taluka)!.add(cityVillage);
+      }
+      if (cityVillage) {
+        if (!cityBanks.has(cityVillage)) cityBanks.set(cityVillage, new Set());
+        cityBanks.get(cityVillage)!.add(bank);
+      }
+      lineCount++;
+    }
+
+    // Convert sets to sorted arrays
+    statesList = Array.from(statesSet).sort();
+    
+    stateToDistrictsObj = {};
+    for (const [s, dists] of stateDistricts.entries()) {
+      stateToDistrictsObj[s] = Array.from(dists).sort();
+    }
+
+    districtToTalukasObj = {};
+    for (const [d, tals] of districtTalukas.entries()) {
+      districtToTalukasObj[d] = Array.from(tals).sort();
+    }
+
+    talukaToCitiesObj = {};
+    for (const [t, cities] of talukaCities.entries()) {
+      talukaToCitiesObj[t] = Array.from(cities).sort();
+    }
+
+    cityToBanksObj = {};
+    for (const [c, banks] of cityBanks.entries()) {
+      cityToBanksObj[c] = Array.from(banks).sort();
+    }
+
+    console.log(`Cascading lookup metadata loaded from ${lineCount} lines in ${Date.now() - start}ms!`);
   } catch (err) {
-    console.error("Critical error loading precompiled index catalog:", err);
+    console.error("Critical error loading CSV catalog:", err);
   }
 }
 
