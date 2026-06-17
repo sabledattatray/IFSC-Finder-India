@@ -1,4 +1,5 @@
 import { Landmark, ShieldCheck, FileText, ChevronRight, Scale, Info, CheckCircle, ArrowLeft } from 'lucide-react';
+import { AnimatedSection } from './animations/AnimatedSection';
 
 interface LegalPagesProps {
   pageType: 'privacy' | 'terms' | 'disclaimer';
@@ -19,7 +20,7 @@ export default function LegalPages({ pageType, onPageChange }: LegalPagesProps) 
       title: 'Privacy Policy Agreement',
       subtitle: 'How we process requests, secure local browser memories, and maintain zero lookup logs.',
       date: 'Updated: June 17, 2026',
-      icon: <ShieldCheck className="w-8 h-8 text-[#7EE787]" />,
+      icon: <ShieldCheck className="w-8 h-8 text-[#00E5A0]" />,
       sections: [
         {
           heading: '1. No Personal Data Processing',
@@ -44,7 +45,7 @@ export default function LegalPages({ pageType, onPageChange }: LegalPagesProps) 
       title: 'Terms of Service',
       subtitle: 'Understanding structural conditions, copyright permissions, and bank code directory usages.',
       date: 'Updated: June 17, 2026',
-      icon: <Scale className="w-8 h-8 text-[#58A6FF]" />,
+      icon: <Scale className="w-8 h-8 text-[#00C2FF]" />,
       sections: [
         {
           heading: '1. Technical Utility Purpose',
@@ -94,79 +95,83 @@ export default function LegalPages({ pageType, onPageChange }: LegalPagesProps) 
   const currentDoc = pageContent[pageType];
 
   return (
-    <div className="w-full bg-[#0D1117] text-[#C9D1D9] py-12 md:py-20 selection:bg-[#58A6FF]/20 selection:text-[#58A6FF]">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
+    <div className="w-full text-[#E2E8F0] py-12 md:py-20 selection:bg-[#00C2FF]/20 selection:text-[#00C2FF] mesh-gradient grid-pattern noise-overlay">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 relative z-10">
         
         {/* Breadcrumbs */}
-        <nav className="flex items-center gap-2 text-xs font-semibold text-[#8B949E] uppercase tracking-wider mb-8">
-          <button onClick={() => onPageChange('home')} className="hover:text-[#58A6FF] transition-colors cursor-pointer">
-            Home
-          </button>
-          <ChevronRight className="w-3" />
-          <span className="text-[#C9D1D9]">
-            {currentDoc.title}
-          </span>
-        </nav>
+        <AnimatedSection direction="down" delay={0.1}>
+          <nav className="flex items-center gap-2 text-xs font-semibold text-[#64748B] uppercase tracking-wider mb-6">
+            <button onClick={() => onPageChange('home')} className="hover:text-[#00C2FF] transition-colors cursor-pointer">
+              Home
+            </button>
+            <ChevronRight className="w-3 text-[#64748B]" />
+            <span className="text-white">
+              {currentDoc.title}
+            </span>
+          </nav>
+        </AnimatedSection>
 
         {/* Back Button */}
-        <button
-          onClick={() => { onPageChange('home'); handleScrollTop(); }}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#21262D] border border-[#30363D] hover:bg-[#30363D] text-xs font-bold text-[#E6EDF3] transition-colors mb-10 cursor-pointer"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Return Home</span>
-        </button>
+        <AnimatedSection direction="left" delay={0.15}>
+          <button
+            onClick={() => { onPageChange('home'); handleScrollTop(); }}
+            className="btn-secondary !py-2.5 !px-5 text-xs flex items-center gap-2 mb-10 cursor-pointer"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Return Home</span>
+          </button>
+        </AnimatedSection>
 
         {/* Header Hero banner */}
-        <div className="bg-[#161B22] border border-[#30363D] rounded-2xl p-6 sm:p-10 mb-10 flex flex-col sm:flex-row items-center sm:items-start gap-6 shadow-xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 h-32 w-32 bg-[radial-gradient(ellipse_at_top_right,rgba(88,166,255,0.05),transparent)]"></div>
-          <div className="p-4 bg-[#0D1117] border border-[#30363D] rounded-2xl shrink-0">
+        <AnimatedSection direction="up" delay={0.2} className="glass-card-strong p-6 sm:p-10 mb-10 flex flex-col sm:flex-row items-center sm:items-start gap-6 shadow-xl relative overflow-hidden bg-[#0F172A]/40">
+          <div className="absolute top-0 right-0 h-32 w-32 bg-[radial-gradient(ellipse_at_top_right,rgba(0,194,255,0.06),transparent)] pointer-events-none"></div>
+          <div className="p-4 bg-[#081120] border border-white/[0.08] rounded-2xl shrink-0 text-white shadow-lg">
             {currentDoc.icon}
           </div>
           <div className="text-center sm:text-left flex-1">
-            <span className="px-2.5 py-0.5 rounded-full bg-[#21262D] border border-[#30363D] text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">
+            <span className="px-2.5 py-0.5 rounded-full bg-white/[0.03] border border-white/[0.08] text-[10px] font-bold text-[#64748B] uppercase tracking-wider">
               {currentDoc.tag}
             </span>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-[#E6EDF3] tracking-tight mt-2.5 mb-2">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight mt-2.5 mb-2.5">
               {currentDoc.title}
             </h1>
-            <p className="text-xs sm:text-sm text-[#8B949E] leading-relaxed mb-4">
+            <p className="text-xs sm:text-sm text-[#94A3B8] leading-relaxed mb-5">
               {currentDoc.subtitle}
             </p>
-            <span className="text-[11px] font-mono font-semibold text-[#58A6FF] bg-[#58A6FF]/10 px-2 py-0.5 rounded-md border border-[#58A6FF]/15">
+            <span className="text-[11px] font-mono font-semibold text-[#00C2FF] bg-[#00C2FF]/10 px-2.5 py-1 rounded-md border border-[#00C2FF]/15">
               {currentDoc.date}
             </span>
           </div>
-        </div>
+        </AnimatedSection>
 
         {/* Document Sections */}
-        <div className="space-y-10 mb-12">
+        <div className="space-y-8 mb-12">
           {currentDoc.sections.map((section, idx) => (
-            <section key={`sec-${idx}`} className="bg-[#161B22]/40 border border-[#30363D]/60 rounded-xl p-6 hover:bg-[#161B22]/60 hover:border-[#30363D] transition-colors">
-              <h2 className="text-lg font-bold text-[#E6EDF3] mb-3 border-b border-[#30363D] pb-2 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-[#58A6FF]"></span>
+            <AnimatedSection key={`sec-${idx}`} direction="up" delay={0.25 + (idx * 0.05)} className="glass-card p-6 border-white/[0.05] hover:border-white/[0.1] transition-all duration-300">
+              <h2 className="text-base font-bold text-white mb-3 border-b border-white/[0.06] pb-2.5 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-[#00C2FF] shadow-lg shadow-[#00C2FF]/50 animate-pulse"></span>
                 <span>{section.heading}</span>
               </h2>
-              <p className="text-xs sm:text-sm text-[#8B949E] leading-relaxed text-justify antialiased">
+              <p className="text-xs sm:text-sm text-[#94A3B8] leading-relaxed text-justify antialiased">
                 {section.body}
               </p>
-            </section>
+            </AnimatedSection>
           ))}
         </div>
 
         {/* Action Call for Verification Info */}
-        <div className="bg-[#1F242C] border border-[#30363D] rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-md">
+        <AnimatedSection direction="up" delay={0.4} className="glass-card-strong p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-md bg-[#0F172A]/40">
           <div className="text-center sm:text-left">
-            <h4 className="text-sm font-bold text-[#FCFCFC] mb-1">Verify codes immediately utilizing official index trees</h4>
-            <p className="text-xs text-[#8B949E]">Our local database contains 173,000+ branch records backed by standard RBI directories.</p>
+            <h4 className="text-sm font-bold text-white mb-1.5">Verify codes immediately utilizing official index trees</h4>
+            <p className="text-xs text-[#94A3B8]">Our local database contains 173,000+ branch records backed by standard RBI directories.</p>
           </div>
           <button
             onClick={() => { onPageChange('search'); handleScrollTop(); }}
-            className="w-full sm:w-auto py-2.5 px-6 rounded-lg bg-[#2ea043] hover:bg-[#238636] font-bold text-xs text-white uppercase tracking-wider transition-colors shrink-0 cursor-pointer"
+            className="btn-primary text-xs font-bold uppercase tracking-wider !py-3 !px-6 shrink-0"
           >
             Launch Tools
           </button>
-        </div>
+        </AnimatedSection>
 
       </div>
     </div>
