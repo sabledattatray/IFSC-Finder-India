@@ -59,17 +59,12 @@ interface BankRecord {
   searchStrReady: string; // pre-computed, normalized search string for lightning-fast matching
 }
 
-// In-Memory Index Structures for the State-District-Taluka/Tahsil-City/Village-Bank-Branch Hierarchy
-const statesList: string[] = [];
-const stateToDistricts = new Map<string, Set<string>>();
-const districtToTalukas = new Map<string, Set<string>>(); // Key: STATE||DISTRICT
-const talukaToCities = new Map<string, Set<string>>(); // Key: STATE||DISTRICT||TALUKA
-const cityToBanks = new Map<string, Set<string>>(); // Key: STATE||DISTRICT||TALUKA||CITY_VILLAGE
-const cascadeToBranches = new Map<string, BankRecord[]>(); // Key: STATE||DISTRICT||TALUKA||CITY_VILLAGE||BANK
-const ifscLookup = new Map<string, BankRecord>();
-const pincodeToRecords = new Map<string, BankRecord[]>();
-const micrLookup = new Map<string, BankRecord>();
-const swiftLookup = new Map<string, BankRecord[]>();
+// Compact Pre-Compiled Index Containers for instant cold starts
+let statesList: string[] = [];
+let stateToDistrictsObj: Record<string, string[]> = {};
+let districtToTalukasObj: Record<string, string[]> = {};
+let talukaToCitiesObj: Record<string, string[]> = {};
+let cityToBanksObj: Record<string, string[]> = {};
 const searchCache = new Map<string, any[]>();
 
 // Helper for parsing CSV lines with double quotes (highly optimized for performance in Vercel)
@@ -99,19 +94,16 @@ function parseCsvLine(line: string): string[] {
 // Extract Taluka/Tehsil/Tahsil from address & branch
 function getTaluka(address: string, branch: string, city: string): string {
   const addrUpper = address.toUpperCase();
-  // Match "TEHSIL <name>", "TALUKA <name>", "TAHSIL <name>", "TALUK <name>"
   const talukaMatch = addrUpper.match(/(?:TALUKA|TEHSIL|TAHSIL|TALUK|TAL\.?|TEH\.?)\s*(?:AND\s+DIST\.?)?\s*([A-Z0-9]+[A-Z0-9\s]{1,15})(?:,|\.|\b)/);
   if (talukaMatch) {
     const match = talukaMatch[1].trim();
     if (match.length >= 3 && match !== "AND") return match;
   }
-  // Match "AT & POST <name>", "AT PO <name>", "A/P <name>"
   const poMatch = addrUpper.match(/(?:AT &? POST|AT PO|A\/P|A\s+P)\s*([A-Z0-9]+[A-Z0-9\s]{1,15})(?:,|\.|\b)/);
   if (poMatch) {
      const match = poMatch[1].trim();
      if (match.length >= 3) return match;
   }
-  // Fallback to cleaner first word of Branch
   const cleanBranch = branch.toUpperCase().replace(/\b(?:BRANCH|ADB|COMMERCIAL|PERSONAL|RTGS|HO|SERVICE|MICRO)\b/g, '').trim();
   if (cleanBranch.length >= 3 && cleanBranch.length <= 15) {
     return cleanBranch;
@@ -178,46 +170,7 @@ function normalizeSearchText(str: string): string {
     .trim();
 }
 
-// Targeted string pools for repetitive fields to save memory on Cloud Run
-const poolBank = new Map<string, string>();
-const poolState = new Map<string, string>();
-const poolDistrict = new Map<string, string>();
-const poolTaluka = new Map<string, string>();
-const poolCity = new Map<string, string>();
-
-function internBank(s: string): string {
-  if (!s) return "";
-  let v = poolBank.get(s);
-  if (v === undefined) { poolBank.set(s, s); return s; }
-  return v;
-}
-function internState(s: string): string {
-  if (!s) return "";
-  let v = poolState.get(s);
-  if (v === undefined) { poolState.set(s, s); return s; }
-  return v;
-}
-function internDistrict(s: string): string {
-  if (!s) return "";
-  let v = poolDistrict.get(s);
-  if (v === undefined) { poolDistrict.set(s, s); return s; }
-  return v;
-}
-function internTaluka(s: string): string {
-  if (!s) return "";
-  let v = poolTaluka.get(s);
-  if (v === undefined) { poolTaluka.set(s, s); return s; }
-  return v;
-}
-function internCity(s: string): string {
-  if (!s) return "";
-  let v = poolCity.get(s);
-  if (v === undefined) { poolCity.set(s, s); return s; }
-  return v;
-}
-
-// Function to load and index the 173,000+ branch records on startup
-async function loadDatabase() {
+function getCsvPath(): string {
   let csvPath = path.join(process.cwd(), 'Bank_Data.csv');
   if (!fs.existsSync(csvPath)) {
     csvPath = path.join(safeDirname, 'Bank_Data.csv');
@@ -225,14 +178,68 @@ async function loadDatabase() {
   if (!fs.existsSync(csvPath)) {
     csvPath = path.join(safeDirname, '..', 'Bank_Data.csv');
   }
+  return csvPath;
+}
+
+// Function to load and index precomputed cascaded metadata on startup
+async function loadDatabase() {
+  console.log("Loading Pre-Compiled Bank cascades...");
+  const start = Date.now();
+  try {
+    const locateFile = (name: string) => {
+      const paths = [
+        path.join(process.cwd(), "public", name),
+        path.join(safeDirname, "public", name),
+        path.join(safeDirname, "..", "public", name),
+        path.join(process.cwd(), name),
+        path.join(safeDirname, name)
+      ];
+      for (const p of paths) {
+        if (fs.existsSync(p)) return p;
+      }
+      return path.join(process.cwd(), "public", name); // default
+    };
+
+    const statesPath = locateFile("states.json");
+    if (fs.existsSync(statesPath)) {
+      statesList = JSON.parse(fs.readFileSync(statesPath, "utf8"));
+      stateToDistrictsObj = JSON.parse(fs.readFileSync(locateFile("state-districts.json"), "utf8"));
+      districtToTalukasObj = JSON.parse(fs.readFileSync(locateFile("district-talukas.json"), "utf8"));
+      talukaToCitiesObj = JSON.parse(fs.readFileSync(locateFile("taluka-cities.json"), "utf8"));
+      cityToBanksObj = JSON.parse(fs.readFileSync(locateFile("city-banks.json"), "utf8"));
+      console.log(`Cascading lookup metadata loaded in ${Date.now() - start}ms! (cold starts cured)`);
+    } else {
+      console.warn("WARNING: Precomputed static index.json files not found during startup. Degrading gracefully.");
+    }
+  } catch (err) {
+    console.error("Critical error loading precompiled index catalog:", err);
+  }
+}
+
+let isDatabaseLoaded = false;
+let databaseLoadingPromise: Promise<void> | null = null;
+
+function ensureDatabaseLoaded(): Promise<void> {
+  if (isDatabaseLoaded) {
+    return Promise.resolve();
+  }
+  if (!databaseLoadingPromise) {
+    databaseLoadingPromise = loadDatabase().then(() => {
+      isDatabaseLoaded = true;
+    });
+  }
+  return databaseLoadingPromise;
+}
+
+// Helper to stream through CSV and return matching records with early breaking limit
+async function queryCsvStream(filterFn: (record: BankRecord) => boolean, limit: number = 100): Promise<any[]> {
+  const csvPath = getCsvPath();
   if (!fs.existsSync(csvPath)) {
-    console.error(`ERROR: Bank_Data.csv not found. Searched multiple paths.`);
-    return;
+    console.error(`ERROR: Bank_Data.csv not found at ${csvPath}`);
+    return [];
   }
 
-  console.log(`Loading & Indexing Bank Master Database from ${csvPath}...`);
-  const start = Date.now();
-
+  const results: any[] = [];
   const fileStream = fs.createReadStream(csvPath);
   const rl = readline.createInterface({
     input: fileStream,
@@ -240,14 +247,11 @@ async function loadDatabase() {
   });
 
   let lineCount = 0;
-  const statesSet = new Set<string>();
-
   for await (const line of rl) {
     if (lineCount === 0) {
       lineCount++;
-      continue; // Skip headers
+      continue; // skip header
     }
-    
     try {
       const cols = parseCsvLine(line);
       if (cols.length < 6) continue;
@@ -263,27 +267,20 @@ async function loadDatabase() {
       const imps = (cols[8] || "").toUpperCase() === "TRUE";
       const rtgs = (cols[9] || "").toUpperCase() === "TRUE";
       const cityNew = cols[10] || "";
-      const iso3166 = cols[11] || "";
       const neft = (cols[12] || "").toUpperCase() === "TRUE";
       const micr = cols[13] || "";
       const upi = (cols[14] || "").toUpperCase() === "TRUE";
       const swift = cols[15] || "";
-      
-      const bank = internBank(bankNameOriginal.toUpperCase());
+
+      const bank = bankNameOriginal.toUpperCase();
       const ifsc = ifscCode.toUpperCase();
       const branch = branchName.toUpperCase();
-      const state = internState(stateOriginal.toUpperCase());
-      const district = internDistrict(districtOriginal ? districtOriginal.toUpperCase() : "GENERAL");
-      const cityVillage = internCity(cityNew ? cityNew.toUpperCase() : getCityVillage(address, branch, district));
+      const state = stateOriginal.toUpperCase();
+      const district = districtOriginal ? districtOriginal.toUpperCase() : "GENERAL";
+      const cityVillage = cityNew ? cityNew.toUpperCase() : getCityVillage(address, branch, district);
+      const taluka = getTaluka(address, branch, cityVillage);
 
-      // Determine derived fields
-      const taluka = internTaluka(getTaluka(address, branch, cityVillage));
-
-      const aliases = getBankAliases(bank);
-      const rawSearchStr = `${bank} ${aliases} ${branch} ${ifsc} ${address} ${cityVillage} ${district} ${state} ${pincode}`;
-      const searchStrReady = normalizeSearchText(rawSearchStr);
-
-      const record: BankRecord = {
+      const rec: BankRecord = {
         bank,
         ifsc,
         branch,
@@ -301,109 +298,39 @@ async function loadDatabase() {
         neft,
         rtgs,
         upi,
-        searchStrReady
+        searchStrReady: ""
       };
 
-      // Store in global maps
-      ifscLookup.set(ifsc, record);
-
-      statesSet.add(state);
-
-      // 1. State -> Districts Map
-      if (!stateToDistricts.has(state)) {
-        stateToDistricts.set(state, new Set());
-      }
-      stateToDistricts.get(state)!.add(district);
-
-      // 2. District -> Talukas Map
-      const stateDistKey = internCity(`${state}||${district}`);
-      if (!districtToTalukas.has(stateDistKey)) {
-        districtToTalukas.set(stateDistKey, new Set());
-      }
-      districtToTalukas.get(stateDistKey)!.add(taluka);
-
-      // 3. Taluka -> Cities/Villages Map
-      const stateDistTalKey = internCity(`${state}||${district}||${taluka}`);
-      if (!talukaToCities.has(stateDistTalKey)) {
-        talukaToCities.set(stateDistTalKey, new Set());
-      }
-      talukaToCities.get(stateDistTalKey)!.add(cityVillage);
-
-      // 4. City/Village -> Banks Map
-      const stateDistTalCityKey = internCity(`${state}||${district}||${taluka}||${cityVillage}`);
-      if (!cityToBanks.has(stateDistTalCityKey)) {
-        cityToBanks.set(stateDistTalCityKey, new Set());
-      }
-      cityToBanks.get(stateDistTalCityKey)!.add(bank);
-
-      // 5. Cascade to Branches list
-      const stateDistTalCityBankKey = internCity(`${state}||${district}||${taluka}||${cityVillage}||${bank}`);
-      if (!cascadeToBranches.has(stateDistTalCityBankKey)) {
-        cascadeToBranches.set(stateDistTalCityBankKey, []);
-      }
-      cascadeToBranches.get(stateDistTalCityBankKey)!.push(record);
-
-      // Speed up pincode index using explicit PINCODE column or regex fallback
-      if (pincode && /^\d+$/.test(pincode)) {
-        if (!pincodeToRecords.has(pincode)) {
-          pincodeToRecords.set(pincode, []);
-        }
-        pincodeToRecords.get(pincode)!.push(record);
-      } else {
-        const pinMatch = address.match(/\b\d{6}\b/);
-        if (pinMatch) {
-          const pin = pinMatch[0];
-          if (!pincodeToRecords.has(pin)) {
-            pincodeToRecords.set(pin, []);
-          }
-          pincodeToRecords.get(pin)!.push(record);
+      if (filterFn(rec)) {
+        results.push({
+          BANK: rec.bank,
+          BRANCH: rec.branch,
+          IFSC: rec.ifsc,
+          ADDRESS: rec.address,
+          CITY: rec.cityVillage,
+          DISTRICT: rec.district,
+          STATE: rec.state,
+          TALUKA: rec.taluka,
+          MICR: rec.micr && rec.micr !== "-" ? rec.micr : "N/A",
+          CONTACT: rec.contact && rec.contact !== "-" ? rec.contact : "Not Provided",
+          IMPS: rec.imps,
+          NEFT: rec.neft,
+          RTGS: rec.rtgs,
+          UPI: rec.upi,
+          SWIFT: rec.swift && rec.swift !== "-" ? rec.swift : "N/A",
+          BANKCODE: rec.ifsc.substring(0, 4)
+        });
+        if (results.length >= limit) {
+          break;
         }
       }
-
-      // Index MICR locator code
-      if (micr && /^\d{9}$/.test(micr)) {
-        micrLookup.set(micr, record);
-      }
-
-      // Index SWIFT code
-      if (swift && swift !== "-" && swift.trim().length >= 8) {
-        const cleanSwift = swift.trim().toUpperCase();
-        if (!swiftLookup.has(cleanSwift)) {
-          swiftLookup.set(cleanSwift, []);
-        }
-        swiftLookup.get(cleanSwift)!.push(record);
-      }
-    } catch (lineErr) {
-      // Gracefully capture any corrupted row error and keep indexing the remainders
-      // Avoid log-flooding, just count or log occasionally
-      if (lineCount % 10000 === 0) {
-        console.error(`Skipped malformed line at ${lineCount}:`, lineErr);
-      }
+    } catch {
+      // Ignore corrupted rows
     }
-
     lineCount++;
   }
-
-  statesList.push(...Array.from(statesSet).sort());
-  
-  const end = Date.now();
-  console.log(`Database loaded successfully! Indexed ${lineCount} records in ${((end - start)/1000).toFixed(2)}s.`);
-  console.log(`Memory Usage: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`);
-}
-
-let isDatabaseLoaded = false;
-let databaseLoadingPromise: Promise<void> | null = null;
-
-function ensureDatabaseLoaded(): Promise<void> {
-  if (isDatabaseLoaded) {
-    return Promise.resolve();
-  }
-  if (!databaseLoadingPromise) {
-    databaseLoadingPromise = loadDatabase().then(() => {
-      isDatabaseLoaded = true;
-    });
-  }
-  return databaseLoadingPromise;
+  fileStream.destroy();
+  return results;
 }
 
 async function startServer() {
@@ -441,11 +368,7 @@ async function startServer() {
       csvExistsInParent: fs.existsSync(path.join(safeDirname, '..', 'Bank_Data.csv')),
       envNodeEnv: process.env.NODE_ENV,
       envVercel: process.env.VERCEL,
-      geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
-      ifscLookupCount: ifscLookup.size,
-      pincodeIndexCount: pincodeToRecords.size,
-      micrIndexCount: micrLookup.size,
-      swiftIndexCount: swiftLookup.size
+      geminiKeyConfigured: !!process.env.GEMINI_API_KEY
     });
   });
 
@@ -458,34 +381,32 @@ async function startServer() {
     const state = (req.query.state as string || "").toUpperCase();
     if (state === "ALL" || !state) {
       const allDistricts = new Set<string>();
-      for (const districts of stateToDistricts.values()) {
+      for (const districts of Object.values(stateToDistrictsObj)) {
         for (const dist of districts) {
           allDistricts.add(dist);
         }
       }
       return res.json(Array.from(allDistricts).sort());
     }
-    const districts = stateToDistricts.get(state);
-    if (!districts) return res.json([]);
-    res.json(Array.from(districts).sort());
+    res.json(stateToDistrictsObj[state] || []);
   });
 
   app.get("/api/talukas", (req, res) => {
     const state = (req.query.state as string || "").toUpperCase();
     const district = (req.query.district as string || "").toUpperCase();
 
-    const results = new Set<string>();
-    for (const [key, talukasSet] of districtToTalukas.entries()) {
-      const [kState, kDist] = key.split("||");
-      const matchState = (state === "ALL" || !state || kState === state);
-      const matchDist = (district === "ALL" || !district || kDist === district);
-      if (matchState && matchDist) {
-        for (const t of talukasSet) {
-          results.add(t);
+    if (!state && !district) {
+      const allTalukas = new Set<string>();
+      for (const talukas of Object.values(districtToTalukasObj)) {
+        for (const tal of talukas) {
+          allTalukas.add(tal);
         }
       }
+      return res.json(Array.from(allTalukas).sort());
     }
-    res.json(Array.from(results).sort());
+
+    const key = `${state}||${district}`;
+    res.json(districtToTalukasObj[key] || []);
   });
 
   app.get("/api/cities", (req, res) => {
@@ -493,19 +414,18 @@ async function startServer() {
     const district = (req.query.district as string || "").toUpperCase();
     const taluka = (req.query.taluka as string || "").toUpperCase();
 
-    const results = new Set<string>();
-    for (const [key, citiesSet] of talukaToCities.entries()) {
-      const [kState, kDist, kTal] = key.split("||");
-      const matchState = (state === "ALL" || !state || kState === state);
-      const matchDist = (district === "ALL" || !district || kDist === district);
-      const matchTal = (taluka === "ALL" || !taluka || kTal === taluka);
-      if (matchState && matchDist && matchTal) {
-        for (const c of citiesSet) {
-          results.add(c);
+    if (!state && !district && !taluka) {
+      const allCities = new Set<string>();
+      for (const cities of Object.values(talukaToCitiesObj)) {
+        for (const c of cities) {
+          allCities.add(c);
         }
       }
+      return res.json(Array.from(allCities).sort());
     }
-    res.json(Array.from(results).sort());
+
+    const key = `${state}||${district}||${taluka}`;
+    res.json(talukaToCitiesObj[key] || []);
   });
 
   app.get("/api/banks", (req, res) => {
@@ -514,183 +434,94 @@ async function startServer() {
     const taluka = (req.query.taluka as string || "").toUpperCase();
     const city = (req.query.city as string || "").toUpperCase();
 
-    const results = new Set<string>();
-    for (const [key, banksSet] of cityToBanks.entries()) {
-      const [kState, kDist, kTal, kCity] = key.split("||");
-      const matchState = (state === "ALL" || !state || kState === state);
-      const matchDist = (district === "ALL" || !district || kDist === district);
-      const matchTal = (taluka === "ALL" || !taluka || kTal === taluka);
-      const matchCity = (city === "ALL" || !city || kCity === city);
-      if (matchState && matchDist && matchTal && matchCity) {
-        for (const b of banksSet) {
-          results.add(b);
+    if (!state && !district && !taluka && !city) {
+      const allBanks = new Set<string>();
+      for (const banks of Object.values(cityToBanksObj)) {
+        for (const b of banks) {
+          allBanks.add(b);
         }
       }
+      return res.json(Array.from(allBanks).sort());
     }
-    res.json(Array.from(results).sort());
+
+    const key = `${state}||${district}||${taluka}||${city}`;
+    res.json(cityToBanksObj[key] || []);
   });
 
-  app.get("/api/branches", (req, res) => {
+  app.get("/api/branches", async (req, res) => {
     const state = (req.query.state as string || "").toUpperCase();
     const district = (req.query.district as string || "").toUpperCase();
     const taluka = (req.query.taluka as string || "").toUpperCase();
     const city = (req.query.city as string || "").toUpperCase();
     const bank = (req.query.bank as string || "").toUpperCase();
 
-    const results: any[] = [];
-    for (const [key, branchRecords] of cascadeToBranches.entries()) {
-      const [kState, kDist, kTal, kCity, kBank] = key.split("||");
-      const matchState = (state === "ALL" || !state || kState === state);
-      const matchDist = (district === "ALL" || !district || kDist === district);
-      const matchTal = (taluka === "ALL" || !taluka || kTal === taluka);
-      const matchCity = (city === "ALL" || !city || kCity === city);
-      const matchBank = (bank === "ALL" || !bank || kBank === bank);
-      if (matchState && matchDist && matchTal && matchCity && matchBank) {
-        results.push(...branchRecords);
-        if (results.length >= 1000) break; // sanity limit to prevent huge client payload
-      }
-    }
+    try {
+      const results = await queryCsvStream((rec) => {
+        const matchState = (state === "ALL" || !state || rec.state === state);
+        const matchDist = (district === "ALL" || !district || rec.district === district);
+        const matchTal = (taluka === "ALL" || !taluka || rec.taluka === taluka);
+        const matchCity = (city === "ALL" || !city || rec.cityVillage === city);
+        const matchBank = (bank === "ALL" || !bank || rec.bank === bank);
+        return matchState && matchDist && matchTal && matchCity && matchBank;
+      }, 500);
 
-    res.json(results.slice(0, 500).map(b => ({
-      bank: b.bank,
-      branchName: b.branch,
-      ifsc: b.ifsc,
-      address: b.address,
-      district: b.district,
-      state: b.state,
-      taluka: b.taluka,
-      cityVillage: b.cityVillage,
-      pincode: b.pincode,
-      contact: b.contact,
-      micr: b.micr,
-      swift: b.swift,
-      imps: b.imps,
-      neft: b.neft,
-      rtgs: b.rtgs,
-      upi: b.upi
-    })).sort((a, b) => a.branchName.localeCompare(b.branchName)));
+      res.json(results.sort((a, b) => a.BRANCH.localeCompare(b.BRANCH)));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Detailed IFSC search 
-  app.get("/api/branch/:ifsc", (req, res) => {
-    const ifsc = (req.params.ifsc || "").toUpperCase();
-    const branch = ifscLookup.get(ifsc);
-    if (!branch) {
-      return res.status(404).json({ error: "Branch not found" });
+  app.get("/api/branch/:ifsc", async (req, res) => {
+    const ifsc = (req.params.ifsc || "").toUpperCase().trim();
+    try {
+      const results = await queryCsvStream((rec) => rec.ifsc === ifsc, 1);
+      if (results.length > 0) {
+        res.json(results[0]);
+      } else {
+        res.status(404).json({ error: "Branch not found." });
+      }
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-    res.json({
-      BANK: branch.bank,
-      BRANCH: branch.branch,
-      IFSC: branch.ifsc,
-      ADDRESS: branch.address,
-      CITY: branch.cityVillage,
-      STATE: branch.state,
-      DISTRICT: branch.district,
-      TALUKA: branch.taluka,
-      MICR: branch.micr && branch.micr !== "-" ? branch.micr : "N/A",
-      CONTACT: branch.contact && branch.contact !== "-" ? branch.contact : "Not Provided",
-      IMPS: branch.imps,
-      NEFT: branch.neft,
-      RTGS: branch.rtgs,
-      UPI: branch.upi,
-      SWIFT: branch.swift && branch.swift !== "-" ? branch.swift : "N/A",
-      BANKCODE: branch.ifsc.substring(0, 4)
-    });
   });
 
-  function mapToResponse(b: BankRecord) {
-    return {
-      BANK: b.bank,
-      BRANCH: b.branch,
-      IFSC: b.ifsc,
-      ADDRESS: b.address,
-      CITY: b.cityVillage,
-      DISTRICT: b.district,
-      STATE: b.state,
-      TALUKA: b.taluka,
-      MICR: b.micr && b.micr !== "-" ? b.micr : "N/A",
-      CONTACT: b.contact && b.contact !== "-" ? b.contact : "Not Provided",
-      IMPS: b.imps,
-      NEFT: b.neft,
-      RTGS: b.rtgs,
-      UPI: b.upi,
-      SWIFT: b.swift && b.swift !== "-" ? b.swift : "N/A",
-      BANKCODE: b.ifsc.substring(0, 4)
-    };
-  }
-
   // Search by MICR code
-  app.get("/api/search-micr", (req, res) => {
+  app.get("/api/search-micr", async (req, res) => {
     const q = (req.query.q as string || "").trim().toUpperCase();
-    const results: any[] = [];
-    if (!q) {
-      // Find the first 30 valid MICRs to show as default list
-      for (const b of micrLookup.values()) {
-        if (b.micr && b.micr.length === 9) {
-          results.push(mapToResponse(b));
-          if (results.length >= 35) break;
-        }
+    try {
+      let results: any[] = [];
+      if (!q) {
+        results = await queryCsvStream((rec) => rec.micr && /^\d{9}$/.test(rec.micr), 35);
+      } else if (/^\d{9}$/.test(q)) {
+        results = await queryCsvStream((rec) => rec.micr === q, 1);
+      } else {
+        results = await queryCsvStream((rec) => rec.micr.includes(q), 50);
       }
-      return res.json(results);
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    if (/^\d{9}$/.test(q)) {
-      const b = micrLookup.get(q);
-      if (b) {
-        results.push(mapToResponse(b));
-      }
-    } else {
-      // Substring match on MICR
-      for (const [micr, b] of micrLookup.entries()) {
-        if (micr.includes(q)) {
-          results.push(mapToResponse(b));
-          if (results.length >= 50) break;
-        }
-      }
-    }
-    res.json(results);
   });
 
   // Search by SWIFT code
-  app.get("/api/search-swift", (req, res) => {
+  app.get("/api/search-swift", async (req, res) => {
     const q = (req.query.q as string || "").trim().toUpperCase();
-    const results: any[] = [];
-    if (!q) {
-      // Find the first 30 valid SWIFT codes to show as default list
-      for (const list of swiftLookup.values()) {
-        for (const b of list) {
-          if (b.swift && b.swift !== "-") {
-            results.push(mapToResponse(b));
-            if (results.length >= 35) break;
-          }
-        }
-        if (results.length >= 35) break;
+    try {
+      let results: any[] = [];
+      if (!q) {
+        results = await queryCsvStream((rec) => rec.swift && rec.swift !== "-", 35);
+      } else {
+        results = await queryCsvStream((rec) => rec.swift.toUpperCase().includes(q), 50);
       }
-      return res.json(results);
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-
-    const matches = swiftLookup.get(q);
-    if (matches) {
-      for (const b of matches) {
-        results.push(mapToResponse(b));
-        if (results.length >= 50) break;
-      }
-    } else {
-      for (const [swift, list] of swiftLookup.entries()) {
-        if (swift.includes(q)) {
-          for (const b of list) {
-            results.push(mapToResponse(b));
-            if (results.length >= 50) break;
-          }
-        }
-        if (results.length >= 50) break;
-      }
-    }
-    res.json(results);
   });
 
   // Global search (text query, pincode, or general bank name)
-  app.get("/api/search", (req, res) => {
+  app.get("/api/search", async (req, res) => {
     const q = (req.query.q as string || "").trim().toUpperCase();
     const mode = req.query.mode as string || "fuzzy";
 
@@ -704,126 +535,44 @@ async function startServer() {
       return res.json(searchCache.get(cacheKey));
     }
 
-    const results: any[] = [];
-    
-    if (mode === "ifsc") {
-      const b = ifscLookup.get(q);
-      if (b) {
-        results.push({
-          BANK: b.bank,
-          BRANCH: b.branch,
-          IFSC: b.ifsc,
-          ADDRESS: b.address,
-          CITY: b.cityVillage,
-          DISTRICT: b.district,
-          STATE: b.state,
-          TALUKA: b.taluka,
-          MICR: b.micr && b.micr !== "-" ? b.micr : "N/A",
-          CONTACT: b.contact && b.contact !== "-" ? b.contact : "Not Provided",
-          IMPS: b.imps,
-          NEFT: b.neft,
-          RTGS: b.rtgs,
-          UPI: b.upi,
-          SWIFT: b.swift && b.swift !== "-" ? b.swift : "N/A",
-          BANKCODE: b.ifsc.substring(0, 4)
-        });
-      }
-    } else if (mode === "pincode") {
-      // 1. If it's a valid 6-digit Indian pincode, do a constant-time indexed lookup
-      if (q.length === 6 && /^\d{6}$/.test(q)) {
-        const matches = pincodeToRecords.get(q) || [];
-        for (const b of matches) {
-          results.push({
-            BANK: b.bank,
-            BRANCH: b.branch,
-            IFSC: b.ifsc,
-            ADDRESS: b.address,
-            CITY: b.cityVillage,
-            DISTRICT: b.district,
-            STATE: b.state,
-            TALUKA: b.taluka,
-            MICR: b.micr && b.micr !== "-" ? b.micr : "N/A",
-            CONTACT: b.contact && b.contact !== "-" ? b.contact : "Not Provided",
-            IMPS: b.imps,
-            NEFT: b.neft,
-            RTGS: b.rtgs,
-            UPI: b.upi,
-            SWIFT: b.swift && b.swift !== "-" ? b.swift : "N/A",
-            BANKCODE: b.ifsc.substring(0, 4)
-          });
-          if (results.length >= 100) break;
+    try {
+      let results: any[] = [];
+
+      if (mode === "ifsc") {
+        results = await queryCsvStream((rec) => rec.ifsc === q, 1);
+      } else if (mode === "pincode") {
+        if (q.length === 6 && /^\d{6}$/.test(q)) {
+          results = await queryCsvStream((rec) => rec.pincode === q, 250);
+        } else {
+          const normQ = normalizeSearchText(q);
+          results = await queryCsvStream((rec) => normalizeSearchText(rec.address).includes(normQ), 250);
         }
       } else {
-        // 2. Substring fallback for partial numbers or coordinates
-        const normQ = normalizeSearchText(q);
-        for (const [ifsc, b] of ifscLookup.entries()) {
-          const normAddr = normalizeSearchText(b.address);
-          if (normAddr.includes(normQ)) {
-            results.push({
-              BANK: b.bank,
-              BRANCH: b.branch,
-              IFSC: b.ifsc,
-              ADDRESS: b.address,
-              CITY: b.cityVillage,
-              DISTRICT: b.district,
-              STATE: b.state,
-              TALUKA: b.taluka,
-              MICR: b.micr && b.micr !== "-" ? b.micr : "N/A",
-              CONTACT: b.contact && b.contact !== "-" ? b.contact : "Not Provided",
-              IMPS: b.imps,
-              NEFT: b.neft,
-              RTGS: b.rtgs,
-              UPI: b.upi,
-              SWIFT: b.swift && b.swift !== "-" ? b.swift : "N/A",
-              BANKCODE: b.ifsc.substring(0, 4)
-            });
-            if (results.length >= 100) break;
+        const normQuery = normalizeSearchText(q);
+        const terms = normQuery.split(/\s+/).filter(Boolean);
+        results = await queryCsvStream((rec) => {
+          const aliases = getBankAliases(rec.bank);
+          const rawSearchStr = `${rec.bank} ${aliases} ${rec.branch} ${rec.ifsc} ${rec.address} ${rec.cityVillage} ${rec.district} ${rec.state} ${rec.pincode}`;
+          const searchStrReady = normalizeSearchText(rawSearchStr);
+          for (const term of terms) {
+            if (!searchStrReady.includes(term)) {
+              return false;
+            }
           }
-        }
+          return true;
+        }, 250);
       }
-    } else {
-      // General fuzzy split-keyword search across all relevant fields (bank, branch, address, city, district, state, pin)
-      const normQuery = normalizeSearchText(q);
-      const terms = normQuery.split(/\s+/).filter(Boolean);
-      for (const [ifsc, b] of ifscLookup.entries()) {
-        let matchesAll = true;
-        for (const term of terms) {
-          if (!b.searchStrReady.includes(term)) {
-            matchesAll = false;
-            break;
-          }
-        }
-        if (matchesAll) {
-          results.push({
-            BANK: b.bank,
-            BRANCH: b.branch,
-            IFSC: b.ifsc,
-            ADDRESS: b.address,
-            CITY: b.cityVillage,
-            DISTRICT: b.district,
-            STATE: b.state,
-            TALUKA: b.taluka,
-            MICR: b.micr && b.micr !== "-" ? b.micr : "N/A",
-            CONTACT: b.contact && b.contact !== "-" ? b.contact : "Not Provided",
-            IMPS: b.imps,
-            NEFT: b.neft,
-            RTGS: b.rtgs,
-            UPI: b.upi,
-            SWIFT: b.swift && b.swift !== "-" ? b.swift : "N/A",
-            BANKCODE: b.ifsc.substring(0, 4)
-          });
-          if (results.length >= 250) break; 
-        }
+
+      // Save outputs in the high-performance cache
+      if (searchCache.size > 2000) {
+        searchCache.clear();
       }
-    }
+      searchCache.set(cacheKey, results);
 
-    // Save outputs in the high-performance cache
-    if (searchCache.size > 2000) {
-      searchCache.clear();
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
     }
-    searchCache.set(cacheKey, results);
-
-    res.json(results);
   });
 
   // Parallel Online Search leveraging Gemini 3.5 with Search Grounding
