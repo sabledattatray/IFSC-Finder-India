@@ -169,9 +169,9 @@ function getCsvPath(): string {
     let current = base;
     for (let i = 0; i < 6; i++) {
        const p = path.join(current, filename);
-       if (fs.existsSync(p)) return p;
+       if (fs.existsSync(p) && fs.statSync(p).size > 1000000) return p;
        const p2 = path.join(current, "public", filename);
-       if (fs.existsSync(p2)) return p2;
+       if (fs.existsSync(p2) && fs.statSync(p2).size > 1000000) return p2;
        const parent = path.dirname(current);
        if (parent === current) break;
        current = parent;
