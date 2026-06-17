@@ -259,10 +259,43 @@ async function loadDatabase() {
   console.log(`Memory Usage: ${(process.memoryUsage().heapUsed / 1024 / 1024).toFixed(2)} MB`);
 }
 
+let isDatabaseLoaded = false;
+let databaseLoadingPromise: Promise<void> | null = null;
+
+function ensureDatabaseLoaded(): Promise<void> {
+  if (isDatabaseLoaded) {
+    return Promise.resolve();
+  }
+  if (!databaseLoadingPromise) {
+    databaseLoadingPromise = loadDatabase().then(() => {
+      isDatabaseLoaded = true;
+    });
+  }
+  return databaseLoadingPromise;
+}
+
 async function startServer() {
-  await loadDatabase();
+  // Trigger database loading in background, do not block route registrations
+  ensureDatabaseLoaded().catch(err => {
+    console.error("Background database load failed:", err);
+  });
 
   app.use(express.json());
+
+  // Verify database is fully online before serving any API requests
+  app.use(async (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      try {
+        await ensureDatabaseLoaded();
+        next();
+      } catch (err: any) {
+        console.error("Database initialization error during request:", err);
+        res.status(500).json({ error: "Failed to load offline database. Please check back shortly." });
+      }
+    } else {
+      next();
+    }
+  });
 
   // API Endpoints for UI Droplist cascades
   app.get("/api/states", (req, res) => {
@@ -642,25 +675,29 @@ Ground your answer carefully in Google Search results. If no bank branch exists 
   });
 
   // Vite development / production fallback
-  if (process.env.DISABLE_HMR === 'true' || process.env.NODE_ENV === "production") {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  } else {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  }
+  if (!process.env.VERCEL) {
+    if (process.env.DISABLE_HMR === 'true' || process.env.NODE_ENV === "production") {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    } else {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
 startServer().catch(err => {
   console.error("Failed to start server:", err);
 });
+
+export default app;
