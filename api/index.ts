@@ -578,47 +578,32 @@ app.get("/api/online-search", async (req, res) => {
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       contents: `Search the web to find verified, authentic details for the bank branch matching query: "${q}".
 You MUST return a JSON list of matches containing as many of these fields as possible:
 BANK, BRANCH, IFSC, ADDRESS, CITY, STATE, DISTRICT, MICR (or N/A), CONTACT (or Not Provided), SWIFT (or N/A), IMPS (boolean, default true), NEFT (boolean, default true), RTGS (boolean, default true), UPI (boolean, default true).
 Ground your answer carefully in Google Search results. If no bank branch exists for the prompt, return empty array.`,
       config: {
-        tools: [{ googleSearch: {} }],
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          description: "A list of bank branches matching the user search query found online.",
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              BANK: { type: Type.STRING, description: "Official full name of the Bank (e.g. HDFC BANK)" },
-              BRANCH: { type: Type.STRING, description: "Name of the branch (e.g. MG ROAD BANGALORE)" },
-              IFSC: { type: Type.STRING, description: "11-character alphanumeric Indian Financial System Code (e.g. HDFC0001234)" },
-              ADDRESS: { type: Type.STRING, description: "Full physical address of the bank branch" },
-              CITY: { type: Type.STRING, description: "City or town of the branch" },
-              DISTRICT: { type: Type.STRING, description: "District" },
-              STATE: { type: Type.STRING, description: "State" },
-              MICR: { type: Type.STRING, description: "9-digit MICR code or N/A" },
-              CONTACT: { type: Type.STRING, description: "Contact number or Not Provided" },
-              SWIFT: { type: Type.STRING, description: "SWIFT code if found or N/A" },
-              IMPS: { type: Type.BOOLEAN, description: "Is IMPS supported?" },
-              NEFT: { type: Type.BOOLEAN, description: "Is NEFT supported?" },
-              RTGS: { type: Type.BOOLEAN, description: "Is RTGS supported?" },
-              UPI: { type: Type.BOOLEAN, description: "Is UPI supported?" }
-            },
-            required: ["BANK", "BRANCH", "IFSC", "ADDRESS", "CITY", "STATE"]
-          }
-        }
+        tools: [{ googleSearch: {} }]
       }
     });
 
-    const responseText = response.text;
+    let responseText = response.text || "";
+    console.log("Raw Gemini Response:", responseText);
+
+    // Try to extract the first JSON array from the response
+    const arrayMatch = responseText.match(/\[.*\]/s);
+    if (arrayMatch) {
+      responseText = arrayMatch[0];
+    } else {
+      responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
+    }
+    
     if (!responseText) {
       return res.json({ results: [], info: "Empty response from Gemini online search." });
     }
 
-    const parsedResults = JSON.parse(responseText.trim());
+    const parsedResults = JSON.parse(responseText);
     const enrichedResults = parsedResults.map((item: any) => ({
       ...item,
       isOnlineResult: true,
