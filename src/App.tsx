@@ -1202,21 +1202,21 @@ export default function App() {
         .then(res => res.json())
         .then(data => {
           const resultsFound = data.map((b: any) => enrichDetails({
-            BANK: b.bank || selBank,
-            BRANCH: b.branchName,
-            IFSC: b.ifsc,
-            ADDRESS: b.address,
-            CITY: b.cityVillage || selCity,
-            DISTRICT: b.district || selDistrict,
-            STATE: b.state || selState,
-            MICR: b.micr && b.micr !== "-" ? b.micr : "N/A",
-            CONTACT: b.contact && b.contact !== "-" ? b.contact : "Not Provided",
-            IMPS: b.imps !== undefined ? b.imps : true,
-            NEFT: b.neft !== undefined ? b.neft : true,
-            RTGS: b.rtgs !== undefined ? b.rtgs : true,
-            UPI: b.upi !== undefined ? b.upi : true,
-            SWIFT: b.swift && b.swift !== "-" ? b.swift : "N/A",
-            BANKCODE: b.ifsc.substring(0, 4)
+            BANK: b.BANK || selBank,
+            BRANCH: b.BRANCH,
+            IFSC: b.IFSC,
+            ADDRESS: b.ADDRESS,
+            CITY: b.CITY || selCity,
+            DISTRICT: b.DISTRICT || selDistrict,
+            STATE: b.STATE || selState,
+            MICR: b.MICR && b.MICR !== "-" ? b.MICR : "N/A",
+            CONTACT: b.CONTACT && b.CONTACT !== "-" ? b.CONTACT : "Not Provided",
+            IMPS: b.IMPS !== undefined ? b.IMPS : true,
+            NEFT: b.NEFT !== undefined ? b.NEFT : true,
+            RTGS: b.RTGS !== undefined ? b.RTGS : true,
+            UPI: b.UPI !== undefined ? b.UPI : true,
+            SWIFT: b.SWIFT && b.SWIFT !== "-" ? b.SWIFT : "N/A",
+            BANKCODE: b.IFSC ? b.IFSC.substring(0, 4) : ""
           }));
           setSearchResults(resultsFound);
           setLoading(false);
