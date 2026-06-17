@@ -1,6 +1,13 @@
 import { useState, FormEvent, useEffect } from 'react';
 import { Search, Clock, Star, Copy, FileText, CheckCircle2, ChevronRight, Share2, MapPin, Building, Globe, Activity, Map, Navigation, Database, Phone, Mail, Box, Shield, Calendar, Calculator, Bookmark, RotateCcw, ChevronDown, Check, X } from 'lucide-react';
 
+// Custom Portal Components
+import Header from './components/Header';
+import Footer from './components/Footer';
+import LandingPage from './components/LandingPage';
+import BlogPage from './components/BlogPage';
+import LegalPages from './components/LegalPages';
+
 // Define the shape of our API response based on Razorpay IFSC API
 interface IfscDetails {
   BANK: string;
@@ -190,6 +197,21 @@ function SearchableSelect({
 }
 
 export default function App() {
+  const [currentPage, setCurrentPage] = useState<'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer'>('home');
+  const [selectedBlogSlug, setSelectedBlogSlug] = useState<string | null>(null);
+
+  const handlePageChange = (page: 'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer', slug?: string) => {
+    setCurrentPage(page);
+    if (slug) {
+      setSelectedBlogSlug(slug);
+    } else {
+      setSelectedBlogSlug(null);
+    }
+    if (typeof window !== 'undefined') {
+      window.scrollTo(0, 0);
+    }
+  };
+
   const [queryInput, setQueryInput] = useState('');
   const [searchMode, setSearchMode] = useState<SearchMode>('master');
   const [loading, setLoading] = useState(false);
@@ -566,28 +588,62 @@ export default function App() {
     );
   };
 
+  if (currentPage !== 'search') {
+    return (
+      <div className="flex flex-col min-h-screen w-full bg-[#0D1117] text-[#C9D1D9] font-sans border-t-[3px] border-[#58A6FF] overflow-y-auto">
+        <Header 
+          currentPage={currentPage}
+          onPageChange={handlePageChange}
+          onSearchModeChange={setSearchMode}
+          favoritesCount={favorites.length}
+          onToggleMobileNav={() => setShowMobileNav(!showMobileNav)}
+        />
+        
+        <main className="flex-1">
+          {currentPage === 'home' && (
+            <LandingPage 
+              onPageChange={handlePageChange}
+              onSearchModeChange={setSearchMode}
+              onPopularBankTrigger={(bankName) => {
+                setQueryInput(bankName);
+                setSearchMode('master');
+                setCurrentPage('search');
+                handleSearch(undefined, bankName, 'master');
+              }}
+            />
+          )}
+          {(currentPage === 'blogs' || currentPage === 'blog-detail') && (
+            <BlogPage 
+              selectedSlug={selectedBlogSlug}
+              onPageChange={handlePageChange}
+            />
+          )}
+          {(currentPage === 'privacy' || currentPage === 'terms' || currentPage === 'disclaimer') && (
+            <LegalPages 
+              pageType={currentPage}
+              onPageChange={handlePageChange}
+            />
+          )}
+        </main>
+
+        <Footer 
+          onPageChange={handlePageChange}
+          onSearchModeChange={setSearchMode}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col min-h-screen md:h-screen w-full bg-[#0D1117] text-[#C9D1D9] font-sans border-t-[3px] border-[#58A6FF] overflow-y-auto md:overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-4 bg-[#161B22] border-b border-[#30363D]">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2 text-[#8B949E]">
-            <Building className="w-5 h-5 text-[#58A6FF]" />
-            <span className="font-bold text-lg text-[#E6EDF3] tracking-tight">IFSC Finder India</span>
-          </div>
-          <div className="hidden sm:flex h-5 w-[1px] bg-[#30363D]"></div>
-          <div className="hidden sm:flex text-sm text-[#8B949E] font-medium tracking-wide">National Banking Directory</div>
-        </div>
-
-        {/* Mobile menu trigger */}
-        <button 
-          onClick={() => setShowMobileNav(true)}
-          className="md:hidden flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#21262D] border border-[#30363D] hover:bg-[#30363D] transition-colors focus:outline-none"
-        >
-          <Star className="w-3.5 h-3.5 text-[#E3B341]" fill={favorites.length > 0 ? '#E3B341' : 'none'} />
-          <span className="text-xs font-bold text-[#C9D1D9] font-mono">{favorites.length || '0'}</span>
-        </button>
-      </header>
+      <Header 
+        currentPage={currentPage}
+        onPageChange={handlePageChange}
+        onSearchModeChange={setSearchMode}
+        favoritesCount={favorites.length}
+        onToggleMobileNav={() => setShowMobileNav(!showMobileNav)}
+      />
 
       {/* Main Content Area */}
       <main className="flex-1 flex flex-col md:flex-row overflow-y-visible md:overflow-hidden">
