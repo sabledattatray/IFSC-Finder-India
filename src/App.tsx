@@ -74,14 +74,22 @@ function SearchableSelect({
     function handleClickOutside(event: MouseEvent | TouchEvent) {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        // Reset query status to match selected
-        const selectedOpt = options.find(o => o.value === value);
-        if (selectedOpt) {
-          setSearchQuery(selectedOpt.label);
-        } else if (value === 'ALL') {
-          setSearchQuery(allOptionText || 'All');
+        // Try to select if there is a case-insensitive exact matching option for the typed text
+        const trimmedQuery = searchQuery.trim().toLowerCase();
+        const matchedOpt = options.find(o => o.label.toLowerCase() === trimmedQuery || o.value.toLowerCase() === trimmedQuery);
+        if (matchedOpt) {
+          onChange(matchedOpt.value);
+          setSearchQuery(matchedOpt.label);
         } else {
-          setSearchQuery('');
+          // Reset query status to match selected
+          const selectedOpt = options.find(o => o.value === value);
+          if (selectedOpt) {
+            setSearchQuery(selectedOpt.label);
+          } else if (value === 'ALL') {
+            setSearchQuery(allOptionText || 'All');
+          } else {
+            setSearchQuery('');
+          }
         }
       }
     }
@@ -129,6 +137,17 @@ function SearchableSelect({
             }}
             onFocus={() => {
               if (!disabled) setIsOpen(true);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                if (filteredOptions.length > 0) {
+                  const firstMatch = filteredOptions[0];
+                  onChange(firstMatch.value);
+                  setSearchQuery(firstMatch.label);
+                  setIsOpen(false);
+                }
+              }
             }}
             placeholder={placeholder}
             disabled={disabled}
@@ -207,9 +226,822 @@ function SearchableSelect({
   );
 }
 
+// ------------------------------------------------------------------------
+// MICR LOCATOR MODAL
+// ------------------------------------------------------------------------
+function MicrModal({ onClose, onGoToIfsc }: { onClose: () => void; onGoToIfsc: (ifsc: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/search-micr?q=')
+      .then(res => res.json())
+      .then(data => {
+        setResults(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleSearch = (val: string) => {
+    setQuery(val);
+    setLoading(true);
+    fetch(`/api/search-micr?q=${encodeURIComponent(val)}`)
+      .then(res => res.json())
+      .then(data => {
+        setResults(data);
+        setError(null);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setError("Failed to fetch results");
+        setLoading(false);
+      });
+  };
+
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const copyText = (txt: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(txt);
+      setCopiedCode(txt);
+      setTimeout(() => setCopiedCode(null), 1500);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-4xl bg-[#0D1117] border border-[#30363D] rounded-xl flex flex-col h-[85vh] max-h-[750px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex justify-between items-center px-6 py-4 border-b border-[#30363D] bg-[#161B22]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#0D1117] border border-[#30363D] text-[#58A6FF] rounded-md">
+              <Database className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-white">MICR Locator</h3>
+              <p className="text-xs text-[#8B949E]">Find, search and verify banking check routing codes (Magnetic Ink Character Recognition)</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-6 md:grid md:grid-cols-3 md:gap-6 flex flex-col gap-6">
+          {/* Left search pane - col-span-2 */}
+          <div className="md:col-span-2 flex flex-col gap-4 overflow-hidden">
+            <div className="relative shrink-0">
+              <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-[#8B949E]" />
+              <input 
+                type="text"
+                placeholder="Enter 9-digit MICR code (e.g. 400002002) or partial number..."
+                value={query}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-[#161B22] border border-[#30363D] rounded-lg text-white placeholder-[#8B949E] focus:outline-none focus:border-[#58A6FF] text-sm"
+              />
+            </div>
+
+            {loading ? (
+              <div className="flex-grow flex flex-col items-center justify-center py-12 text-[#8B949E] gap-2">
+                <div className="w-6 h-6 border-2 border-t-transparent border-[#58A6FF] rounded-full animate-spin"></div>
+                <span className="text-xs font-medium">Scanning index records...</span>
+              </div>
+            ) : error ? (
+              <div className="p-4 bg-[#FF7B72]/10 border border-[#FF7B72]/30 text-[#FF7B72] rounded-lg text-sm shrink-0">{error}</div>
+            ) : results.length === 0 ? (
+              <div className="flex-grow flex flex-col items-center justify-center text-center py-12">
+                <span className="text-sm text-[#8B949E] italic">No branches matching your MICR query found.</span>
+              </div>
+            ) : (
+              <div className="flex-grow space-y-3 overflow-y-auto pr-2">
+                <div className="text-[11px] font-bold text-[#8B949E] uppercase tracking-wider mb-2 shrink-0">Showing {results.length} Bank Branches</div>
+                {results.map((b, i) => (
+                  <div key={i} className="p-4 bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] rounded-lg transition-colors flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="text-xs font-bold text-[#58A6FF] uppercase tracking-wider">{b.BANK}</div>
+                      <div className="text-sm font-semibold text-white">{b.BRANCH}</div>
+                      <div className="text-xs text-[#8B949E] max-w-md">{b.ADDRESS}</div>
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {b.IMPS && <span className="bg-[#000] border border-[#30363D] text-[#7EE787] text-[9px] px-1.5 py-0.5 rounded font-mono">IMPS</span>}
+                        {b.NEFT && <span className="bg-[#000] border border-[#30363D] text-[#58A6FF] text-[9px] px-1.5 py-0.5 rounded font-mono">NEFT</span>}
+                        {b.RTGS && <span className="bg-[#000] border border-[#30363D] text-[#D2A8FF] text-[9px] px-1.5 py-0.5 rounded font-mono">RTGS</span>}
+                        {b.UPI && <span className="bg-[#000] border border-[#30363D] text-[#FF7B72] text-[9px] px-1.5 py-0.5 rounded font-mono">UPI</span>}
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col items-end gap-2.5 shrink-0 sm:border-l sm:border-[#30363D] sm:pl-4">
+                      <div>
+                        <div className="text-[10px] text-[#8B949E] font-semibold text-right uppercase">MICR CODE</div>
+                        <div className="font-mono text-sm text-[#FF7B72] font-semibold flex items-center gap-1.5 bg-[#0D1117] px-2.5 py-1 rounded border border-[#30363D]">
+                          <span>{b.MICR}</span>
+                          <button onClick={() => copyText(b.MICR)} className="p-0.5 hover:text-white text-[#8B949E] transition-colors cursor-pointer">
+                            {copiedCode === b.MICR ? <Check className="w-3.5 h-3.5 text-[#58A6FF]" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <button 
+                          onClick={() => { onGoToIfsc(b.IFSC); }}
+                          className="text-[11px] text-[#58A6FF] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                        >
+                          View IFSC: {b.IFSC} <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right info pane - educational */}
+          <div className="bg-[#161B22] border border-[#30363D] rounded-lg p-5 flex flex-col justify-between gap-4 overflow-y-auto">
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-white border-b border-[#30363D] pb-2 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-[#58A6FF]" />
+                What is an MICR Code?
+              </h4>
+              <p className="text-xs text-[#8B949E] leading-relaxed">
+                MICR stands for <strong>Magnetic Ink Character Recognition</strong>. It is a 9-digit character recognition technology used mainly by the banking industry to ease the processing and clearing of cheques.
+              </p>
+
+              <div>
+                <h5 className="text-[11px] font-bold text-[#E6EDF3] mb-2 font-mono">Structure of 9-Digit Code:</h5>
+                <ul className="space-y-2">
+                  <li className="text-xs bg-[#0D1117] p-2.5 border border-[#30363D] rounded-md">
+                    <span className="font-bold text-[#58A6FF] block font-mono">Digits 1, 2, 3</span>
+                    <span className="text-[#8B949E] text-[11px]">Represent the <strong>City Code</strong> matching the PIN code of the city. (e.g. 400 for Mumbai)</span>
+                  </li>
+                  <li className="text-xs bg-[#0D1117] p-2.5 border border-[#30363D] rounded-md">
+                    <span className="font-bold text-[#D2A8FF] block font-mono">Digits 4, 5, 6</span>
+                    <span className="text-[#8B949E] text-[11px]">Represent the <strong>Bank Code</strong> unique to that bank institution. (e.g. 002 for SBI)</span>
+                  </li>
+                  <li className="text-xs bg-[#0D1117] p-2.5 border border-[#30363D] rounded-md">
+                    <span className="font-bold text-[#FF7B72] block font-mono">Digits 7, 8, 9</span>
+                    <span className="text-[#8B949E] text-[11px]">Represent the particular bank's <strong>Branch Code</strong>. (e.g. 001 for main branch)</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-[#8B949E] bg-[#0D1117] p-2.5 rounded border border-[#30363D] italic">
+              * Unlike IFSC (which is alphanumeric, designed for digital transactions), MICR is strictly printed using security magnetic ink on physical cheques for high-speed scanners.
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------------
+// SWIFT SEARCH MODAL
+// ------------------------------------------------------------------------
+function SwiftModal({ onClose, onGoToIfsc }: { onClose: () => void; onGoToIfsc: (ifsc: string) => void }) {
+  const [query, setQuery] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/search-swift?q=')
+      .then(res => res.json())
+      .then(data => {
+        setResults(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleSearch = (val: string) => {
+    setQuery(val);
+    setLoading(true);
+    fetch(`/api/search-swift?q=${encodeURIComponent(val)}`)
+      .then(res => res.json())
+      .then(data => {
+        setResults(data);
+        setError(null);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setError("Failed to fetch results");
+        setLoading(false);
+      });
+  };
+
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const copyText = (txt: string) => {
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard.writeText(txt);
+      setCopiedCode(txt);
+      setTimeout(() => setCopiedCode(null), 1500);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-4xl bg-[#0D1117] border border-[#30363D] rounded-xl flex flex-col h-[85vh] max-h-[750px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex justify-between items-center px-6 py-4 border-b border-[#30363D] bg-[#161B22]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#0D1117] border border-[#30363D] text-[#D2A8FF] rounded-md">
+              <Globe className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-white">SWIFT / BIC Search</h3>
+              <p className="text-xs text-[#8B949E]">Search international wire transfer routing codes for cross-border banking</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-6 md:grid md:grid-cols-3 md:gap-6 flex flex-col gap-6">
+          {/* Left search pane - col-span-2 */}
+          <div className="md:col-span-2 flex flex-col gap-4 overflow-hidden">
+            <div className="relative shrink-0">
+              <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-[#8B949E]" />
+              <input 
+                type="text"
+                placeholder="Enter SWIFT/BIC code (e.g. SBININ) or bank name..."
+                value={query}
+                onChange={(e) => handleSearch(e.target.value)}
+                className="w-full pl-10 pr-4 py-3 bg-[#161B22] border border-[#30363D] rounded-lg text-white placeholder-[#8B949E] focus:outline-none focus:border-[#58A6FF] text-sm"
+              />
+            </div>
+
+            {loading ? (
+              <div className="flex-grow flex flex-col items-center justify-center py-12 text-[#8B949E] gap-2">
+                <div className="w-6 h-6 border-2 border-t-transparent border-[#BF91FF] rounded-full animate-spin"></div>
+                <span className="text-xs font-medium">Scanning Forex SWIFT records...</span>
+              </div>
+            ) : error ? (
+              <div className="p-4 bg-[#FF7B72]/10 border border-[#FF7B72]/30 text-[#FF7B72] rounded-lg text-sm shrink-0">{error}</div>
+            ) : results.length === 0 ? (
+              <div className="flex-grow flex flex-col items-center justify-center text-center py-12">
+                <span className="text-sm text-[#8B949E] italic">No branches matching your SWIFT query found.</span>
+              </div>
+            ) : (
+              <div className="flex-grow space-y-3 overflow-y-auto pr-2">
+                <div className="text-[11px] font-bold text-[#8B949E] uppercase tracking-wider mb-2 shrink-0">Showing {results.length} SWIFT-Enabled Branches</div>
+                {results.map((b, i) => (
+                  <div key={i} className="p-4 bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] rounded-lg transition-colors flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="text-xs font-bold text-[#D2A8FF] uppercase tracking-wider">{b.BANK}</div>
+                      <div className="text-sm font-semibold text-white">{b.BRANCH}</div>
+                      <div className="text-xs text-[#8B949E] max-w-md">{b.ADDRESS}</div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <span className="bg-[#0D1117] border border-[#30363D] text-[#8B949E] text-[10px] px-2 py-0.5 rounded font-mono font-semibold">City: {b.CITY}</span>
+                        <span className="bg-[#0D1117] border border-[#30363D] text-[#8B949E] text-[10px] px-2 py-0.5 rounded font-mono font-semibold">State: {b.STATE}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-col items-end gap-2.5 shrink-0 sm:border-l sm:border-[#30363D] sm:pl-4">
+                      <div>
+                        <div className="text-[10px] text-[#8B949E] font-semibold text-right uppercase">SWIFT / BIC</div>
+                        <div className="font-mono text-base text-[#D2A8FF] font-bold flex items-center gap-1.5 bg-[#0D1117] px-2.5 py-1 rounded border border-[#30363D]">
+                          <span>{b.SWIFT}</span>
+                          <button onClick={() => copyText(b.SWIFT)} className="p-0.5 hover:text-white text-[#8B949E] transition-colors cursor-pointer">
+                            {copiedCode === b.SWIFT ? <Check className="w-3.5 h-3.5 text-[#58A6FF]" /> : <Copy className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <button 
+                          onClick={() => { onGoToIfsc(b.IFSC); }}
+                          className="text-[11px] text-[#58A6FF] hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+                        >
+                          Check IFSC: {b.IFSC} <ChevronRight className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Right info pane - educational */}
+          <div className="bg-[#161B22] border border-[#30363D] rounded-lg p-5 flex flex-col justify-between gap-4 overflow-y-auto">
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-white border-b border-[#30363D] pb-2 flex items-center gap-2">
+                <Globe className="w-4 h-4 text-[#D2A8FF]" />
+                SWIFT Code Info
+              </h4>
+              <p className="text-xs text-[#8B949E] leading-relaxed">
+                SWIFT stands for <strong>Society for Worldwide Interbank Financial Telecommunication</strong> (also called BIC - Bank Identifier Code).
+              </p>
+
+              <div>
+                <h5 className="text-[11px] font-bold text-[#8B949E] uppercase tracking-wider mb-2">Wire Checklist:</h5>
+                <div className="space-y-2 text-xs text-[#C9D1D9]">
+                  <p className="text-[11px] text-[#8B949E]">To receive money from overseas, you always need:</p>
+                  <div className="p-2.5 bg-[#0D1117] border border-[#30363D] rounded space-y-1.5 font-sans">
+                    <div className="flex justify-between border-b border-[#1F242C] pb-1"><span className="text-xs text-[#8B949E]">1. Bank Name</span><span className="font-semibold text-white text-right text-[11px]">e.g. State Bank of India</span></div>
+                    <div className="flex justify-between border-b border-[#1F242C] pb-1"><span className="text-xs text-[#8B949E]">2. SWIFT Code</span><span className="font-mono text-[#D2A8FF] font-semibold text-right">8 or 11 Character Code</span></div>
+                    <div className="flex justify-between border-b border-[#1F242C] pb-1"><span className="text-xs text-[#8B949E]">3. IFSC Code</span><span className="font-mono text-[#58A6FF] text-[11px] font-semibold text-right">Local branch IFSC</span></div>
+                    <div className="flex justify-between border-b border-[#1F242C] pb-1"><span className="text-xs text-[#8B949E]">4. Account No</span><span className="font-semibold text-white text-right">Your savings/current account</span></div>
+                    <div className="flex justify-between"><span className="text-xs text-[#8B949E]">5. Beneficiary</span><span className="font-semibold text-white text-right text-[11px]">Match exact banking name</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-[#0D1117] border border-[#30363D] rounded text-xs text-[#8B949E]">
+                <strong className="text-white block mb-1 font-semibold">💡 Important Note</strong>
+                Not every branch has a unique SWIFT code. Often only Forex Hubs or Head Offices have their own SWIFT code and process international transactions for smaller branches in the region.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------------
+// BANK HOLIDAYS MODAL
+// ------------------------------------------------------------------------
+function HolidaysModal({ onClose }: { onClose: () => void }) {
+  const [selectedState, setSelectedState] = useState<string>('National');
+  const [selectedMonth, setSelectedMonth] = useState<string>('All');
+
+  const states = [
+    'National', 'Maharashtra', 'Delhi', 'Karnataka', 'Tamil Nadu', 
+    'West Bengal', 'Uttar Pradesh', 'Gujarat', 'Kerala', 'Telangana'
+  ];
+
+  const months = ['All', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const holidayList = [
+    { date: '2026-01-01', day: 'Thursday', name: "New Year's Day", type: 'Restricted', state: 'National', desc: 'Restricted bank holiday celebrating the New Year' },
+    { date: '2026-01-14', day: 'Wednesday', name: 'Makar Sankranti / Pongal', type: 'State Holiday', state: 'Tamil Nadu, Maharashtra, Gujarat', desc: 'Harvest festival celebrated across several Indian states' },
+    { date: '2026-01-26', day: 'Monday', name: 'Republic Day', type: 'National Holiday', state: 'National', desc: 'National Gazetted Holiday celebrating foundation of Republic of India' },
+    { date: '2026-02-15', day: 'Sunday', name: 'Maha Shivratri', type: 'State Holiday', state: 'Maharashtra, Delhi, Gujarat, Karnataka', desc: 'Major Hindu festival in honor of Lord Shiva' },
+    { date: '2026-03-03', day: 'Tuesday', name: 'Holi', type: 'State Holiday', state: 'National (except South)', desc: 'Festival of Colors celebrated widely' },
+    { date: '2026-04-02', day: 'Thursday', name: 'Good Friday', type: 'State Holiday', state: 'National', desc: 'Christian religious holiday preceding Easter Sunday' },
+    { date: '2026-04-18', day: 'Saturday', name: 'Eid-ul-Fitr / Ramzan Eid', type: 'State Holiday', state: 'National', desc: 'End of Islamic holy fasting month of Ramadan' },
+    { date: '2026-05-01', day: 'Friday', name: 'Maharashtra Day / May Day', type: 'State Holiday', state: 'Maharashtra', desc: 'Foundation day of the state of Maharashtra' },
+    { date: '2026-05-25', day: 'Monday', name: 'Bakrid / Eid-al-Adha', type: 'State Holiday', state: 'National', desc: 'Islamic Festival of Sacrifice' },
+    { date: '2026-07-25', day: 'Saturday', name: 'Muharram', type: 'State Holiday', state: 'National', desc: 'Islamic day of solemn remembrance' },
+    { date: '2026-08-15', day: 'Saturday', name: 'Independence Day', type: 'National Holiday', state: 'National', desc: 'National Gazetted Holiday celebrating freedom from British Rule' },
+    { date: '2026-09-04', day: 'Friday', name: 'Janmashtami', type: 'State Holiday', state: 'Uttar Pradesh, Delhi, Gujarat', desc: 'Hindu festival celebrating birth of Lord Krishna' },
+    { date: '2026-09-15', day: 'Tuesday', name: 'Ganesh Chaturthi', type: 'State Holiday', state: 'Maharashtra, Tamil Nadu, Karnataka', desc: 'Ten-day Hindu festival for Lord Ganesha' },
+    { date: '2026-10-02', day: 'Friday', name: 'Gandhi Jayanti', type: 'National Holiday', state: 'National', desc: 'National Gazetted Holiday celebrating Father of Nation Mohandas Gandhi' },
+    { date: '2026-10-20', day: 'Tuesday', name: 'Dussehra / Vijayadashami', type: 'State Holiday', state: 'National', desc: 'Victory of good over evil (Lord Rama defeating Ravana)' },
+    { date: '2026-11-08', day: 'Sunday', name: 'Diwali / Deepavali', type: 'National Holiday', state: 'National', desc: 'Hindu Festival of Lights celebrated with lamps and sweets' },
+    { date: '2026-11-09', day: 'Monday', name: 'Govardhan Puja / New Year', type: 'State Holiday', state: 'Gujarat, Maharashtra', desc: 'Day after Diwali custom holidays' },
+    { date: '2026-11-23', day: 'Monday', name: 'Guru Nanak Jayanti', type: 'State Holiday', state: 'Punjab, Delhi, Maharashtra', desc: 'Birth of the first Sikh Guru' },
+    { date: '2026-12-25', day: 'Friday', name: 'Christmas Day', type: 'National Holiday', state: 'National', desc: 'Christian holiday celebrating the birth of Jesus Christ' }
+  ];
+
+  const getMonthAbbr = (dateStr: string) => {
+    const parts = dateStr.split('-');
+    const m = parseInt(parts[1]);
+    const monthsAbbr = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return monthsAbbr[m] || '';
+  };
+
+  const filteredHolidays = holidayList.filter(h => {
+    const stateMatch = selectedState === 'National' || 
+                       h.state === 'National' || 
+                       h.state.toUpperCase().includes(selectedState.toUpperCase());
+                       
+    const mAbbr = getMonthAbbr(h.date);
+    const monthMatch = selectedMonth === 'All' || mAbbr === selectedMonth;
+    
+    return stateMatch && monthMatch;
+  });
+
+  const getDaysCountLeft = (targetDateStr: string) => {
+    const today = new Date('2026-06-17'); // June 17, 2026
+    const target = new Date(targetDateStr);
+    const diff = target.getTime() - today.getTime();
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  };
+
+  const nextHoliday = holidayList
+    .filter(h => getDaysCountLeft(h.date) >= 0)
+    .sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-4xl bg-[#0D1117] border border-[#30363D] rounded-xl flex flex-col h-[85vh] max-h-[750px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex justify-between items-center px-6 py-4 border-b border-[#30363D] bg-[#161B22]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#0D1117] border border-[#30363D] text-[#FF7B72] rounded-md">
+              <Calendar className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-white">Bank Holidays Calendar — 2026</h3>
+              <p className="text-xs text-[#8B949E]">Official RBI recognized bank closures for national & state-wise holidays in India</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Current Info Panel */}
+        <div className="px-6 py-3 bg-[#1F242C] border-b border-[#30363D] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-[#58A6FF] animate-pulse"></span>
+            <span className="text-xs font-semibold text-[#C9D1D9]">Current Date: June 17, 2026 (Wednesday)</span>
+          </div>
+          {nextHoliday && (
+            <div className="text-xs text-[#8B949E]">
+              Next up: <strong className="text-white">{nextHoliday.name}</strong> on <span className="text-[#FF7B72] font-mono">{nextHoliday.date}</span> (~{getDaysCountLeft(nextHoliday.date)} days away)
+            </div>
+          )}
+        </div>
+
+        {/* Content Area */}
+        <div className="flex-grow overflow-hidden flex flex-col md:flex-row">
+          {/* Main List */}
+          <div className="flex-1 p-6 overflow-y-auto flex flex-col gap-4">
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 shrink-0">
+              <div className="flex flex-col gap-1 w-44">
+                <label className="text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Select State / Region</label>
+                <div className="relative">
+                  <select 
+                    value={selectedState} 
+                    onChange={e => setSelectedState(e.target.value)}
+                    className="w-full bg-[#161B22] border border-[#30363D] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-[#58A6FF] appearance-none cursor-pointer"
+                  >
+                    {states.map(s => <option key={s} value={s}>{s === 'National' ? 'National / All States' : s}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-[#8B949E] pointer-events-none" />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1 w-32">
+                <label className="text-[10px] font-bold text-[#8B949E] uppercase tracking-wider">Month</label>
+                <div className="relative">
+                  <select 
+                    value={selectedMonth} 
+                    onChange={e => setSelectedMonth(e.target.value)}
+                    className="w-full bg-[#161B22] border border-[#30363D] rounded-md px-2.5 py-1.5 text-xs text-white outline-none focus:border-[#58A6FF] appearance-none cursor-pointer"
+                  >
+                    {months.map(m => <option key={m} value={m}>{m === 'All' ? 'All Months' : m}</option>)}
+                  </select>
+                  <ChevronDown className="absolute right-2.5 top-2.5 w-3.5 h-3.5 text-[#8B949E] pointer-events-none" />
+                </div>
+              </div>
+            </div>
+
+            {/* List */}
+            <div className="space-y-3 overflow-y-auto pr-2 flex-grow">
+              {filteredHolidays.length === 0 ? (
+                <div className="text-center py-12 text-sm text-[#8B949E] italic">
+                  No holidays match your filter criteria in 2026.
+                </div>
+              ) : (
+                filteredHolidays.map((h, i) => {
+                  const isPastStr = getDaysCountLeft(h.date) < 0;
+                  return (
+                    <div 
+                      key={i} 
+                      className={`p-3.5 border rounded-lg transition-colors flex items-center justify-between gap-4
+                        ${isPastStr ? 'bg-[#161B22]/50 border-dashed border-[#21262D]' : 'bg-[#161B22] border-[#30363D] hover:border-[#8B949E]'}`}
+                    >
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded font-mono uppercase tracking-wider
+                            ${h.type === 'National Holiday' ? 'bg-[#FF7B72]/10 text-[#FF7B72] border border-[#FF7B72]/20' : 'bg-[#58A6FF]/10 text-[#58A6FF] border border-[#58A6FF]/20'}`}>
+                            {h.type}
+                          </span>
+                          {isPastStr && <span className="text-[9px] font-semibold text-[#8B949E] bg-[#21262D] px-1.5 py-0.2 rounded uppercase">Completed</span>}
+                        </div>
+                        <h4 className="text-sm font-bold text-white leading-snug">{h.name}</h4>
+                        <p className="text-xs text-[#8B949E] leading-normal">{h.desc}</p>
+                        <p className="text-[10px] text-[#A5D6FF] font-medium">Applicable: <span className="text-[#C9D1D9]">{h.state}</span></p>
+                      </div>
+
+                      <div className="text-center shrink-0 bg-[#0D1117] px-4 py-2 border border-[#30363D] rounded-lg min-w-[100px]">
+                        <div className="text-[10px] font-mono font-bold text-[#8B949E] uppercase leading-none">{getMonthAbbr(h.date)} 2026</div>
+                        <div className="text-lg font-bold text-white font-mono leading-none my-1">{h.date.split('-')[2]}</div>
+                        <div className="text-[9px] font-semibold text-[#8B949E] leading-none">{h.day}</div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          {/* Rules/Info sidebar */}
+          <div className="w-full md:w-80 bg-[#161B22] border-t md:border-t-0 md:border-l border-[#30363D] p-6 space-y-4 text-xs overflow-y-auto">
+            <h4 className="text-sm font-semibold text-white border-b border-[#30363D] pb-2 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-[#FF7B72]" />
+              RBI Weekend Closure Rules
+            </h4>
+            <div className="space-y-4 leading-relaxed text-[#8B949E]">
+              <p>Under official RBI directives, commercial banks in India follow strict weekend closed schedules:</p>
+              
+              <div className="space-y-2.5 text-white">
+                <div className="p-2.5 bg-[#0D1117] border border-[#30363D] rounded flex gap-2.5 items-center">
+                  <CheckCircle2 className="w-4 h-4 text-[#7EE787] shrink-0" />
+                  <div>
+                    <span className="font-bold text-xs">Sundays:</span>
+                    <span className="text-xs text-[#8B949E] block">All Sundays are strict bank holidays across India.</span>
+                  </div>
+                </div>
+                
+                <div className="p-2.5 bg-[#0D1117] border border-[#30363D] rounded flex gap-2.5 items-center">
+                  <CheckCircle2 className="w-4 h-4 text-[#58A6FF] shrink-0" />
+                  <div>
+                    <span className="font-bold text-xs">2nd & 4th Saturdays:</span>
+                    <span className="text-xs text-[#8B949E] block">Complete closure / official banking shut downs.</span>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-[#0D1117] border border-[#30363D] rounded flex gap-2.5 items-center">
+                  <X className="w-4 h-4 text-[#FF7B72] shrink-0" />
+                  <div>
+                    <span className="font-bold text-xs">1st, 3rd, 5th Saturdays:</span>
+                    <span className="text-xs text-[#8B949E] block">Full normal working days for all branches.</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="pt-2">
+                <h5 className="font-semibold text-white mb-1">Electronic Money status:</h5>
+                <p className="text-[11px] leading-relaxed">
+                  During bank holidays, digital transfers like <strong>NEFT, IMPS, RTGS, and UPI remain 100% active and running</strong> 24/7/365, while physical cheque clearings, gold desk work, and local accounts desk operations are closed.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------------
+// EMI CALCULATOR MODAL
+// ------------------------------------------------------------------------
+function EmiModal({ onClose }: { onClose: () => void }) {
+  const [loanAmount, setLoanAmount] = useState<number>(1500000); // Default 15 Lakhs
+  const [interestRate, setInterestRate] = useState<number>(8.5); // Default 8.5%
+  const [tenureYears, setTenureYears] = useState<number>(15); // Default 15 Years
+
+  // Mathematical Calculation blocks
+  const P = loanAmount;
+  const r = (interestRate / 12) / 100;
+  const n = tenureYears * 12;
+
+  // EMI formula: P * r * (1 + r)^n / ((1 + r)^n - 1)
+  const emi = P * r * Math.pow(1 + r, n) / (Math.pow(1 + r, n) - 1);
+  const totalPayment = emi * n;
+  const totalInterest = totalPayment - P;
+
+  const ratioPrincipal = totalPayment > 0 ? (P / totalPayment) * 100 : 100;
+  const ratioInterest = 100 - ratioPrincipal;
+
+  const formatINR = (num: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      maximumFractionDigits: 0
+    }).format(num);
+  };
+
+  // Yearly Amortization calculations
+  const schedule = [];
+  let remainingBalance = P;
+  for (let i = 1; i <= tenureYears; i++) {
+    let yearInterest = 0;
+    let yearPrincipal = 0;
+    for (let m = 1; m <= 12; m++) {
+      const im = remainingBalance * r;
+      const pm = emi - im;
+      yearInterest += im;
+      yearPrincipal += pm;
+      remainingBalance -= pm;
+    }
+    schedule.push({
+      year: i,
+      principalPaid: Math.max(0, yearPrincipal),
+      interestPaid: Math.max(0, yearInterest),
+      balance: Math.max(0, remainingBalance)
+    });
+  }
+
+  // Pure SVG Arc mathematics to bypass charting dependencies
+  const radius = 50;
+  const circumference = 2 * Math.PI * radius;
+  const strokeOffsetInterest = circumference - (ratioInterest / 100) * circumference;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-4xl bg-[#0D1117] border border-[#30363D] rounded-xl flex flex-col h-[85vh] max-h-[750px] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* Header */}
+        <div className="flex justify-between items-center px-6 py-4 border-b border-[#30363D] bg-[#161B22]">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-[#0D1117] border border-[#30363D] text-[#7EE787] rounded-md">
+              <Calculator className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-lg text-white">EMI Calculator</h3>
+              <p className="text-xs text-[#8B949E]">Calculate monthly EMIs, total interest payouts, and schedule your Home, Personal, or Car loans</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-md hover:bg-[#30363D] text-[#8B949E] hover:text-white transition-colors cursor-pointer">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content Section */}
+        <div className="flex-1 overflow-y-auto p-6 md:grid md:grid-cols-2 md:gap-8 flex flex-col gap-6">
+          {/* Left panel - Inputs */}
+          <div className="space-y-6 flex flex-col justify-between">
+            <div className="space-y-4">
+              {/* Loan Amount */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-[#E6EDF3] uppercase tracking-wider">Loan Amount</span>
+                  <span className="font-mono text-sm text-[#7EE787] font-bold">{formatINR(loanAmount)}</span>
+                </div>
+                <input 
+                  type="range"
+                  min="100000"
+                  max="30000000"
+                  step="50000"
+                  value={loanAmount}
+                  onChange={e => setLoanAmount(parseInt(e.target.value))}
+                  className="w-full h-1.5 bg-[#21262D] rounded-lg appearance-none cursor-pointer accent-[#7EE787]"
+                />
+                <div className="flex justify-between text-[10px] text-[#8B949E]">
+                  <span>₹1 Lakh</span>
+                  <span>₹1.5 Crore</span>
+                  <span>₹3 Crore</span>
+                </div>
+              </div>
+
+              {/* Interest Rate */}
+              <div className="space-y-1.5 mt-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-[#E6EDF3] uppercase tracking-wider">Interest Rate (p.a.)</span>
+                  <span className="font-mono text-sm text-[#FF7B72] font-bold">{interestRate}%</span>
+                </div>
+                <input 
+                  type="range"
+                  min="5"
+                  max="15"
+                  step="0.1"
+                  value={interestRate}
+                  onChange={e => setInterestRate(parseFloat(e.target.value))}
+                  className="w-full h-1.5 bg-[#21262D] rounded-lg appearance-none cursor-pointer accent-[#FF7B72]"
+                />
+                <div className="flex justify-between text-[10px] text-[#8B949E]">
+                  <span>5%</span>
+                  <span>10%</span>
+                  <span>15%</span>
+                </div>
+              </div>
+
+              {/* Tenure */}
+              <div className="space-y-1.5 mt-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-bold text-[#E6EDF3] uppercase tracking-wider">Tenure (Years)</span>
+                  <span className="font-mono text-sm text-[#58A6FF] font-bold">{tenureYears} Years ({tenureYears*12} Months)</span>
+                </div>
+                <input 
+                  type="range"
+                  min="1"
+                  max="30"
+                  step="1"
+                  value={tenureYears}
+                  onChange={e => setTenureYears(parseInt(e.target.value))}
+                  className="w-full h-1.5 bg-[#21262D] rounded-lg appearance-none cursor-pointer accent-[#58A6FF]"
+                />
+                <div className="flex justify-between text-[10px] text-[#8B949E]">
+                  <span>1 Yr</span>
+                  <span>15 Yrs</span>
+                  <span>30 Years</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Amortization Breakdown Table */}
+            <div className="space-y-2 mt-4">
+              <span className="text-[11px] font-bold text-[#8B949E] uppercase tracking-wider block">Yearly Payment Schedule</span>
+              <div className="border border-[#30363D] rounded-lg overflow-hidden">
+                <div className="grid grid-cols-4 bg-[#161B22] p-2 text-[10px] font-bold text-[#8B949E] uppercase border-b border-[#30363D]">
+                  <span>Yr</span>
+                  <span className="text-right">Principal</span>
+                  <span className="text-right">Interest</span>
+                  <span className="text-right">Balance</span>
+                </div>
+                <div className="max-h-48 overflow-y-auto divide-y divide-[#30363D] pr-1">
+                  {schedule.map((item) => (
+                    <div key={item.year} className="grid grid-cols-4 p-2 text-xs text-[#C9D1D9] hover:bg-[#161B22] transition-colors font-mono">
+                      <span className="font-sans text-[#8B949E] font-bold">Y{item.year}</span>
+                      <span className="text-right text-[#7EE787]">{formatINR(item.principalPaid)}</span>
+                      <span className="text-right text-[#FF7B72]">{formatINR(item.interestPaid)}</span>
+                      <span className="text-right text-white">{formatINR(item.balance)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Right Panel - Outputs & Custom SVG Pizza Diagram */}
+          <div className="bg-[#161B22] border border-[#30363D] rounded-lg p-5 flex flex-col justify-between gap-4">
+            <div className="grid grid-cols-2 gap-3 shrink-0">
+              <div className="p-3 bg-[#0D1117] border border-[#30363D] rounded-lg text-center col-span-2">
+                <span className="text-[10px] font-bold text-[#8B949E] uppercase tracking-wider block">Estimated Monthly EMI</span>
+                <div className="text-2xl font-black text-[#7EE787] mt-1 font-mono">{formatINR(emi)}</div>
+              </div>
+              
+              <div className="p-3 bg-[#0D1117] border border-[#30363D] rounded-lg">
+                <span className="text-[9px] font-bold text-[#8B949E] uppercase tracking-wider block">Total Principal</span>
+                <span className="text-xs font-bold text-[#7EE787] block mt-0.5">{formatINR(loanAmount)}</span>
+                <span className="text-[10px] text-[#8B949E] font-medium block">({ratioPrincipal.toFixed(1)}% ratio)</span>
+              </div>
+
+              <div className="p-3 bg-[#0D1117] border border-[#30363D] rounded-lg">
+                <span className="text-[9px] font-bold text-[#8B949E] uppercase tracking-wider block">Total Interest Cost</span>
+                <span className="text-xs font-bold text-[#FF7B72] block mt-0.5">{formatINR(totalInterest)}</span>
+                <span className="text-[10px] text-[#8B949E] font-medium block">({ratioInterest.toFixed(1)}% ratio)</span>
+              </div>
+            </div>
+
+            {/* Donut Chart with clean SVG */}
+            <div className="flex flex-col items-center justify-center p-3 relative bg-[#0D1117] rounded-lg border border-[#30363D] my-1 flex-grow">
+              <div className="relative w-36 h-36 flex items-center justify-center">
+                <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
+                  <circle
+                    className="text-[#7EE787] stroke-current"
+                    strokeWidth="11"
+                    fill="transparent"
+                    r={radius}
+                    cx="60"
+                    cy="60"
+                  />
+                  <circle
+                    className="text-[#FF7B72] stroke-current transition-all duration-300"
+                    strokeWidth="11"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={strokeOffsetInterest}
+                    strokeLinecap="round"
+                    fill="transparent"
+                    r={radius}
+                    cx="60"
+                    cy="60"
+                  />
+                </svg>
+                {/* Center text overlay */}
+                <div className="absolute text-center">
+                  <span className="text-[9px] font-bold text-[#8B949E] uppercase block">Total Payout</span>
+                  <span className="text-[10px] font-bold text-[#C9D1D9] font-mono leading-none">{formatINR(totalPayment)}</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4 mt-3.5 text-xs w-full justify-center">
+                <span className="flex items-center gap-1.5 text-[#C9D1D9]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#7EE787]"></span> Principal portion
+                </span>
+                <span className="flex items-center gap-1.5 text-[#C9D1D9]">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#FF7B72]"></span> Interest portion
+                </span>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-[#8B949E] leading-relaxed italic bg-[#0D1117] p-2.5 rounded border border-[#30363D] shrink-0">
+              * Note: Higher loan tenures drastically increase total interest payouts. Prioritize a higher monthly EMI to minimize interest loading!
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [currentPage, setCurrentPage] = useState<'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer'>('home');
   const [selectedBlogSlug, setSelectedBlogSlug] = useState<string | null>(null);
+  const [activeTool, setActiveTool] = useState<'micr' | 'swift' | 'holidays' | 'emi' | null>(null);
 
   const handlePageChange = (page: 'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer', slug?: string) => {
     setCurrentPage(page);
@@ -304,9 +1136,9 @@ export default function App() {
       .catch(err => console.error("Error loading talukas:", err));
   }, [selDistrict, selState]);
 
-  // 4. Fetch Cities when selTaluka changes
+  // 4. Fetch Cities when selDistrict changes (no longer strictly dependent on Taluka!)
   useEffect(() => {
-    if (!selTaluka) {
+    if (!selDistrict) {
       setCityOptions([]);
       setSelCity('');
       return;
@@ -315,11 +1147,11 @@ export default function App() {
       .then(res => res.json())
       .then(data => setCityOptions(data))
       .catch(err => console.error("Error loading cities:", err));
-  }, [selTaluka, selDistrict, selState]);
+  }, [selDistrict, selTaluka, selState]);
 
-  // 5. Fetch Banks when selCity changes
+  // 5. Fetch Banks when selState changes (can match bank brands even if city/district is empty!)
   useEffect(() => {
-    if (!selCity) {
+    if (!selState) {
       setBankOptions([]);
       setSelBank('');
       return;
@@ -328,7 +1160,7 @@ export default function App() {
       .then(res => res.json())
       .then(data => setBankOptions(data))
       .catch(err => console.error("Error loading banks:", err));
-  }, [selCity, selTaluka, selDistrict, selState]);
+  }, [selState, selDistrict, selTaluka, selCity]);
 
   // 6. Fetch Branches when selBank changes
   useEffect(() => {
@@ -341,7 +1173,7 @@ export default function App() {
       .then(res => res.json())
       .then(data => setBranchOptions(data))
       .catch(err => console.error("Error loading branches:", err));
-  }, [selBank, selCity, selTaluka, selDistrict, selState]);
+  }, [selBank, selState, selDistrict, selTaluka, selCity]);
 
   const clearFilters = () => {
     setSelState('');
@@ -701,6 +1533,38 @@ export default function App() {
                </div>
             </div>
 
+            {/* Financial Tools Section in Left Sidebar */}
+            <div className="px-5 flex items-center gap-2 opacity-70 mb-2 mt-4 border-t border-[#30363D] pt-4">
+              <Box className="w-3.5 h-3.5 text-[#58A6FF]" />
+              <span className="text-[11px] font-bold text-[#8B949E] uppercase tracking-wider">Financial Tools</span>
+            </div>
+            <div className="mb-4 space-y-0.5 px-2">
+              <div
+                onClick={() => setActiveTool('micr')}
+                className="px-3 py-2 flex items-center gap-2.5 rounded-md hover:bg-[#161B22] text-[#8B949E] hover:text-[#A5D6FF] transition-all text-xs font-semibold cursor-pointer"
+              >
+                <Database className="w-3.5 h-3.5 text-[#A5D6FF]" /> MICR Locator
+              </div>
+              <div
+                onClick={() => setActiveTool('swift')}
+                className="px-3 py-2 flex items-center gap-2.5 rounded-md hover:bg-[#161B22] text-[#8B949E] hover:text-[#BF91FF] transition-all text-xs font-semibold cursor-pointer"
+              >
+                <Globe className="w-3.5 h-3.5 text-[#BF91FF]" /> SWIFT Search
+              </div>
+              <div
+                onClick={() => setActiveTool('holidays')}
+                className="px-3 py-2 flex items-center gap-2.5 rounded-md hover:bg-[#161B22] text-[#8B949E] hover:text-[#FF7B72] transition-all text-xs font-semibold cursor-pointer"
+              >
+                <Calendar className="w-3.5 h-3.5 text-[#FF7B72]" /> Bank Holidays
+              </div>
+              <div
+                onClick={() => setActiveTool('emi')}
+                className="px-3 py-2 flex items-center gap-2.5 rounded-md hover:bg-[#161B22] text-[#8B949E] hover:text-[#7EE787] transition-all text-xs font-semibold cursor-pointer"
+              >
+                <Calculator className="w-3.5 h-3.5 text-[#7EE787]" /> EMI Calculator
+              </div>
+            </div>
+
             {/* Favorites Section */}
             <div className="px-5 flex items-center gap-2 opacity-70 mb-2 mt-2">
               <Star className="w-3.5 h-3.5 text-[#E3B341]" />
@@ -832,8 +1696,8 @@ export default function App() {
                         label="City / Village"
                         value={selCity}
                         placeholder="Search/Select City..."
-                        disabled={!selTaluka}
-                        allOptionText={selTaluka ? "All Cities / Villages" : undefined}
+                        disabled={!selDistrict}
+                        allOptionText={selDistrict ? "All Cities / Villages" : undefined}
                         options={cityOptions.map(c => ({ label: c, value: c }))}
                         onChange={val => {
                           setSelCity(val);
@@ -846,8 +1710,8 @@ export default function App() {
                         label="Bank Name"
                         value={selBank}
                         placeholder="Search/Select Bank..."
-                        disabled={!selCity}
-                        allOptionText={selCity ? "All Banks" : undefined}
+                        disabled={!selState}
+                        allOptionText={selState ? "All Banks" : undefined}
                         options={bankOptions.map(b => ({ label: b, value: b }))}
                         onChange={val => {
                           setSelBank(val);
@@ -1489,28 +2353,28 @@ export default function App() {
             <div className="space-y-4 mt-6 pt-6 border-t border-[#30363D]">
                <h4 className="text-[11px] text-[#8B949E] uppercase tracking-wider font-bold mb-3 flex items-center gap-2"><Box className="w-4 h-4"/> Financial Tools</h4>
                <div className="grid grid-cols-1 gap-3">
-                 <div className="flex items-center gap-4 p-3 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] cursor-pointer transition-colors group">
+                 <div onClick={() => setActiveTool('micr')} className="flex items-center gap-4 p-3 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] cursor-pointer transition-colors group">
                    <div className="bg-[#0D1117] p-2 rounded-md border border-[#30363D] text-[#A5D6FF] group-hover:text-[#58A6FF] group-hover:border-[#58A6FF] transition-colors"><Database className="w-5 h-5"/></div>
                    <div className="flex-1">
                      <div className="text-sm font-bold text-[#E6EDF3] group-hover:text-white">MICR Locator</div>
                      <div className="text-xs text-[#8B949E]">Find check routing codes</div>
                    </div>
                  </div>
-                 <div className="flex items-center gap-4 p-3 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] cursor-pointer transition-colors group">
+                 <div onClick={() => setActiveTool('swift')} className="flex items-center gap-4 p-3 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] cursor-pointer transition-colors group">
                    <div className="bg-[#0D1117] p-2 rounded-md border border-[#30363D] text-[#D2A8FF] group-hover:text-[#a371f7] group-hover:border-[#a371f7] transition-colors"><Globe className="w-5 h-5"/></div>
                    <div className="flex-1">
                      <div className="text-sm font-bold text-[#E6EDF3] group-hover:text-white">SWIFT Search</div>
                      <div className="text-xs text-[#8B949E]">International wire transfers</div>
                    </div>
                  </div>
-                 <div className="flex items-center gap-4 p-3 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] cursor-pointer transition-colors group">
+                 <div onClick={() => setActiveTool('holidays')} className="flex items-center gap-4 p-3 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] cursor-pointer transition-colors group">
                    <div className="bg-[#0D1117] p-2 rounded-md border border-[#30363D] text-[#FF7B72] group-hover:text-[#fa4549] group-hover:border-[#fa4549] transition-colors"><Calendar className="w-5 h-5"/></div>
                    <div className="flex-1">
                      <div className="text-sm font-bold text-[#E6EDF3] group-hover:text-white">Bank Holidays</div>
                      <div className="text-xs text-[#8B949E]">Official RBI calendar 2026</div>
                    </div>
                  </div>
-                 <div className="flex items-center gap-4 p-3 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] cursor-pointer transition-colors group">
+                 <div onClick={() => setActiveTool('emi')} className="flex items-center gap-4 p-3 rounded-lg bg-[#161B22] border border-[#30363D] hover:border-[#8B949E] cursor-pointer transition-colors group">
                    <div className="bg-[#0D1117] p-2 rounded-md border border-[#30363D] text-[#7EE787] group-hover:text-[#46c959] group-hover:border-[#46c959] transition-colors"><Calculator className="w-5 h-5"/></div>
                    <div className="flex-1">
                      <div className="text-sm font-bold text-[#E6EDF3] group-hover:text-white">EMI Calculator</div>
@@ -1577,6 +2441,37 @@ export default function App() {
                 </div>
               </div>
 
+              {/* Financial Tools */}
+              <div>
+                <span className="text-[11px] font-bold text-[#8B949E] uppercase tracking-wider block mb-2 font-semibold">Financial Tools</span>
+                <div className="space-y-1">
+                   <button 
+                     onClick={() => { setActiveTool('micr'); setShowMobileNav(false); }}
+                     className="w-full py-2 px-3 flex items-center gap-3 rounded-md text-left text-sm font-medium text-[#8B949E] hover:bg-[#161B22] hover:text-[#58A6FF] transition-colors"
+                   >
+                     <Database className="w-4 h-4 text-[#A5D6FF]" /> MICR Locator
+                   </button>
+                   <button 
+                     onClick={() => { setActiveTool('swift'); setShowMobileNav(false); }}
+                     className="w-full py-2 px-3 flex items-center gap-3 rounded-md text-left text-sm font-medium text-[#8B949E] hover:bg-[#161B22] hover:text-[#BF91FF] transition-colors"
+                   >
+                     <Globe className="w-4 h-4 text-[#D2A8FF]" /> SWIFT Search
+                   </button>
+                   <button 
+                     onClick={() => { setActiveTool('holidays'); setShowMobileNav(false); }}
+                     className="w-full py-2 px-3 flex items-center gap-3 rounded-md text-left text-sm font-medium text-[#8B949E] hover:bg-[#161B22] hover:text-[#FF7B72] transition-colors"
+                   >
+                     <Calendar className="w-4 h-4 text-[#FF7B72]" /> Bank Holidays
+                   </button>
+                   <button 
+                     onClick={() => { setActiveTool('emi'); setShowMobileNav(false); }}
+                     className="w-full py-2 px-3 flex items-center gap-3 rounded-md text-left text-sm font-medium text-[#8B949E] hover:bg-[#161B22] hover:text-[#7EE787] transition-colors"
+                   >
+                     <Calculator className="w-4 h-4 text-[#7EE787]" /> EMI Calculator
+                   </button>
+                </div>
+              </div>
+
               {/* Favorites */}
               <div>
                 <div className="flex items-center gap-2 mb-2">
@@ -1627,6 +2522,34 @@ export default function App() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Active Financial Tool Modals */}
+      {activeTool === 'micr' && (
+        <MicrModal 
+          onClose={() => setActiveTool(null)} 
+          onGoToIfsc={(ifsc) => {
+            setSearchMode('ifsc');
+            setQueryInput(ifsc);
+            handleSearch(undefined, ifsc, 'ifsc');
+          }} 
+        />
+      )}
+      {activeTool === 'swift' && (
+        <SwiftModal 
+          onClose={() => setActiveTool(null)} 
+          onGoToIfsc={(ifsc) => {
+            setSearchMode('ifsc');
+            setQueryInput(ifsc);
+            handleSearch(undefined, ifsc, 'ifsc');
+          }} 
+        />
+      )}
+      {activeTool === 'holidays' && (
+        <HolidaysModal onClose={() => setActiveTool(null)} />
+      )}
+      {activeTool === 'emi' && (
+        <EmiModal onClose={() => setActiveTool(null)} />
       )}
 
     </div>

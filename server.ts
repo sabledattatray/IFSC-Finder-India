@@ -59,6 +59,8 @@ const cityToBanks = new Map<string, Set<string>>(); // Key: STATE||DISTRICT||TAL
 const cascadeToBranches = new Map<string, BankRecord[]>(); // Key: STATE||DISTRICT||TALUKA||CITY_VILLAGE||BANK
 const ifscLookup = new Map<string, BankRecord>();
 const pincodeToRecords = new Map<string, BankRecord[]>();
+const micrLookup = new Map<string, BankRecord>();
+const swiftLookup = new Map<string, BankRecord[]>();
 const searchCache = new Map<string, any[]>();
 
 // Helper for parsing CSV lines with double quotes (highly optimized for performance in Vercel)
@@ -348,6 +350,20 @@ async function loadDatabase() {
           pincodeToRecords.get(pin)!.push(record);
         }
       }
+
+      // Index MICR locator code
+      if (micr && /^\d{9}$/.test(micr)) {
+        micrLookup.set(micr, record);
+      }
+
+      // Index SWIFT code
+      if (swift && swift !== "-" && swift.trim().length >= 8) {
+        const cleanSwift = swift.trim().toUpperCase();
+        if (!swiftLookup.has(cleanSwift)) {
+          swiftLookup.set(cleanSwift, []);
+        }
+        swiftLookup.get(cleanSwift)!.push(record);
+      }
     } catch (lineErr) {
       // Gracefully capture any corrupted row error and keep indexing the remainders
       // Avoid log-flooding, just count or log occasionally
@@ -551,6 +567,97 @@ async function startServer() {
       SWIFT: branch.swift && branch.swift !== "-" ? branch.swift : "N/A",
       BANKCODE: branch.ifsc.substring(0, 4)
     });
+  });
+
+  function mapToResponse(b: BankRecord) {
+    return {
+      BANK: b.bank,
+      BRANCH: b.branch,
+      IFSC: b.ifsc,
+      ADDRESS: b.address,
+      CITY: b.cityVillage,
+      DISTRICT: b.district,
+      STATE: b.state,
+      TALUKA: b.taluka,
+      MICR: b.micr && b.micr !== "-" ? b.micr : "N/A",
+      CONTACT: b.contact && b.contact !== "-" ? b.contact : "Not Provided",
+      IMPS: b.imps,
+      NEFT: b.neft,
+      RTGS: b.rtgs,
+      UPI: b.upi,
+      SWIFT: b.swift && b.swift !== "-" ? b.swift : "N/A",
+      BANKCODE: b.ifsc.substring(0, 4)
+    };
+  }
+
+  // Search by MICR code
+  app.get("/api/search-micr", (req, res) => {
+    const q = (req.query.q as string || "").trim().toUpperCase();
+    const results: any[] = [];
+    if (!q) {
+      // Find the first 30 valid MICRs to show as default list
+      for (const b of micrLookup.values()) {
+        if (b.micr && b.micr.length === 9) {
+          results.push(mapToResponse(b));
+          if (results.length >= 35) break;
+        }
+      }
+      return res.json(results);
+    }
+
+    if (/^\d{9}$/.test(q)) {
+      const b = micrLookup.get(q);
+      if (b) {
+        results.push(mapToResponse(b));
+      }
+    } else {
+      // Substring match on MICR
+      for (const [micr, b] of micrLookup.entries()) {
+        if (micr.includes(q)) {
+          results.push(mapToResponse(b));
+          if (results.length >= 50) break;
+        }
+      }
+    }
+    res.json(results);
+  });
+
+  // Search by SWIFT code
+  app.get("/api/search-swift", (req, res) => {
+    const q = (req.query.q as string || "").trim().toUpperCase();
+    const results: any[] = [];
+    if (!q) {
+      // Find the first 30 valid SWIFT codes to show as default list
+      for (const list of swiftLookup.values()) {
+        for (const b of list) {
+          if (b.swift && b.swift !== "-") {
+            results.push(mapToResponse(b));
+            if (results.length >= 35) break;
+          }
+        }
+        if (results.length >= 35) break;
+      }
+      return res.json(results);
+    }
+
+    const matches = swiftLookup.get(q);
+    if (matches) {
+      for (const b of matches) {
+        results.push(mapToResponse(b));
+        if (results.length >= 50) break;
+      }
+    } else {
+      for (const [swift, list] of swiftLookup.entries()) {
+        if (swift.includes(q)) {
+          for (const b of list) {
+            results.push(mapToResponse(b));
+            if (results.length >= 50) break;
+          }
+        }
+        if (results.length >= 50) break;
+      }
+    }
+    res.json(results);
   });
 
   // Global search (text query, pincode, or general bank name)
