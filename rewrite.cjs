@@ -1,4 +1,8 @@
-import express from "express";
+const fs = require('fs');
+
+let content = fs.readFileSync('api/index.ts', 'utf8');
+
+const newCode = `import express from "express";
 import serverless from "serverless-http";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
@@ -156,11 +160,11 @@ app.get("/api/search-micr", async (req, res) => {
   try {
     let results = [];
     if (!q) {
-      results = await db.select().from(bankBranches).where(sql`length("micr") = 9`).limit(35);
-    } else if (/^\d{9}$/.test(q)) {
+      results = await db.select().from(bankBranches).where(sql\`length("micr") = 9\`).limit(35);
+    } else if (/^\\d{9}$/.test(q)) {
       results = await db.select().from(bankBranches).where(eq(bankBranches.micr, q)).limit(1);
     } else {
-      results = await db.select().from(bankBranches).where(ilike(bankBranches.micr, `%${q}%`)).limit(50);
+      results = await db.select().from(bankBranches).where(ilike(bankBranches.micr, \`%\${q}%\`)).limit(50);
     }
     res.json(results.map(recToApi));
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -171,9 +175,9 @@ app.get("/api/search-swift", async (req, res) => {
   try {
     let results = [];
     if (!q) {
-      results = await db.select().from(bankBranches).where(sql`"swift" != '-'`).limit(35);
+      results = await db.select().from(bankBranches).where(sql\`"swift" != '-'\`).limit(35);
     } else {
-      results = await db.select().from(bankBranches).where(ilike(bankBranches.swift, `%${q}%`)).limit(50);
+      results = await db.select().from(bankBranches).where(ilike(bankBranches.swift, \`%\${q}%\`)).limit(50);
     }
     res.json(results.map(recToApi));
   } catch (err: any) { res.status(500).json({ error: err.message }); }
@@ -190,16 +194,16 @@ app.get("/api/search", async (req, res) => {
     if (mode === "ifsc") {
       results = await db.select().from(bankBranches).where(eq(bankBranches.ifsc, q)).limit(1);
     } else if (mode === "pincode") {
-      if (q.length === 6 && /^\d{6}$/.test(q)) {
+      if (q.length === 6 && /^\\d{6}$/.test(q)) {
         results = await db.select().from(bankBranches).where(eq(bankBranches.pincode, q)).limit(250);
       } else {
         const normQ = normalizeSearchText(q);
-        results = await db.select().from(bankBranches).where(ilike(bankBranches.searchStrReady, `%${normQ}%`)).limit(250);
+        results = await db.select().from(bankBranches).where(ilike(bankBranches.searchStrReady, \`%\${normQ}%\`)).limit(250);
       }
     } else {
       const normQuery = normalizeSearchText(q);
-      const terms = normQuery.split(/\s+/).filter(Boolean);
-      let conditions = terms.map(term => ilike(bankBranches.searchStrReady, `%${term}%`));
+      const terms = normQuery.split(/\\s+/).filter(Boolean);
+      let conditions = terms.map(term => ilike(bankBranches.searchStrReady, \`%\${term}%\`));
       
       let query = db.select().from(bankBranches);
       if (conditions.length > 0) query = query.where(and(...conditions));
@@ -211,82 +215,9 @@ app.get("/api/search", async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+`;
 
-// Live Online Grounded Gemini Search
-app.get("/api/online-search", async (req, res) => {
-  const q = (req.query.q as string || "").trim();
-  if (!q) {
-    return res.json({ results: [] });
-  }
+let endIndex = content.indexOf('// Live Online Grounded Gemini Search');
+let finalStr = newCode + '\n' + content.substring(endIndex);
 
-  const ai = getGeminiClient();
-  if (!ai) {
-    return res.json({
-      results: [],
-      error: "GEMINI_API_KEY is not configured on the server. To enable 'very power online search', go to Settings > Secrets and add GEMINI_API_KEY."
-    });
-  }
-
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: `Search the web to find verified, authentic details for the bank branch matching query: "${q}".
-You MUST return a JSON list of matches containing as many of these fields as possible:
-BANK, BRANCH, IFSC, ADDRESS, CITY, STATE, DISTRICT, MICR (or N/A), CONTACT (or Not Provided), SWIFT (or N/A), IMPS (boolean, default true), NEFT (boolean, default true), RTGS (boolean, default true), UPI (boolean, default true).
-Ground your answer carefully in Google Search results. If no bank branch exists for the prompt, return empty array.`,
-      config: {
-        tools: [{ googleSearch: {} }]
-      }
-    });
-
-    let responseText = response.text || "";
-    console.log("Raw Gemini Response:", responseText);
-
-    // Try to extract the first JSON array from the response
-    const arrayMatch = responseText.match(/\[.*\]/s);
-    if (arrayMatch) {
-      responseText = arrayMatch[0];
-    } else {
-      responseText = responseText.replace(/```json/gi, '').replace(/```/g, '').trim();
-    }
-    
-    if (!responseText) {
-      return res.json({ results: [], info: "Empty response from Gemini online search." });
-    }
-
-    const parsedResults = JSON.parse(responseText);
-    const enrichedResults = parsedResults.map((item: any) => ({
-      ...item,
-      isOnlineResult: true,
-      BANKCODE: item.IFSC ? item.IFSC.substring(0, 4) : "GENERIC"
-    }));
-
-    const sources: any[] = [];
-    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-    if (chunks) {
-      for (const ch of chunks) {
-        if (ch.web?.uri) {
-          sources.push({
-            title: ch.web.title || "Web Reference",
-            uri: ch.web.uri
-          });
-        }
-      }
-    }
-
-    res.json({
-      results: enrichedResults,
-      sources: sources
-    });
-
-  } catch (err: any) {
-    console.error("Gemini online-search failed:", err);
-    res.json({
-      results: [],
-      error: "Online search was unable to gather live results: " + err.message
-    });
-  }
-});
-
-export { app };
-export default serverless(app);
+fs.writeFileSync('api/index.ts', finalStr);
