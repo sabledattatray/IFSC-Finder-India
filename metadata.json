@@ -1,0 +1,6 @@
+{
+  "name": "IFSC Finder India",
+  "description": "A comprehensive banking directory and utility platform to find and verify IFSC codes, MICR codes, and branch details of banks across India.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
