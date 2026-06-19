@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { 
   Building, Globe, FileText, MapPin, Map, ShieldCheck, 
   ArrowRight, Search, Activity, Heart, Clock, Star, Landmark, ChevronRight, Zap, CheckCircle 
@@ -117,13 +118,13 @@ export default function LandingPage({
               <span>Launch Master Search (AI)</span>
             </button>
             
-            <button
-              onClick={() => { onPageChange('blogs'); if (typeof window !== 'undefined') window.scrollTo(0,0); }}
+            <Link
+              to="/blogs"
               className="btn-secondary w-full sm:w-auto !py-3.5 !px-8 flex items-center justify-center gap-2"
             >
               <span>Read Financial Guides</span>
               <ArrowRight className="w-4.5 h-4.5 text-[#94A3B8]" />
-            </button>
+            </Link>
           </div>
         </AnimatedSection>
 
@@ -303,13 +304,13 @@ export default function LandingPage({
               Latest Banking & FinTech Insights
             </h2>
           </div>
-          <button
-            onClick={() => { onPageChange('blogs'); if (typeof window !== 'undefined') window.scrollTo(0,0); }}
+          <Link
+            to="/blogs"
             className="text-sm font-bold text-[#00C2FF] hover:text-[#00E5A0] flex items-center gap-1 mt-4 sm:mt-0 cursor-pointer group"
           >
             <span>Explore All Guides</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </button>
+          </Link>
         </AnimatedSection>
 
         <StaggerContainer className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -335,13 +336,13 @@ export default function LandingPage({
                 <p className="text-xs text-[#64748B] leading-relaxed flex-1 mb-6 text-justify">
                   Understand the exact physical-digital anatomy of banking routing structures and how check clearing automation mechanisms operate.
                 </p>
-                <button
-                  onClick={() => { onPageChange('blog-detail', 'ultimate-guide-ifsc-micr-codes'); if (typeof window !== 'undefined') window.scrollTo(0,0); }}
+                <Link
+                  to="/blogs/ultimate-guide-ifsc-micr-codes"
                   className="text-xs font-bold text-[#00C2FF] flex items-center gap-1.5 self-start cursor-pointer hover:text-white transition-colors"
                 >
                   <span>Read Full Article</span>
                   <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                </Link>
               </div>
             </div>
           </StaggerItem>
@@ -367,13 +368,13 @@ export default function LandingPage({
                 <p className="text-xs text-[#64748B] leading-relaxed flex-1 mb-6 text-justify">
                   An exhaustive breakdown of payment limits, settlement speeds, and transaction charges across leading national electronic networks.
                 </p>
-                <button
-                  onClick={() => { onPageChange('blog-detail', 'digital-payment-systems-india-upi-neft-rtgs-imps'); if (typeof window !== 'undefined') window.scrollTo(0,0); }}
+                <Link
+                  to="/blogs/digital-payment-systems-india-upi-neft-rtgs-imps"
                   className="text-xs font-bold text-[#00C2FF] flex items-center gap-1.5 self-start cursor-pointer hover:text-white transition-colors"
                 >
                   <span>Read Full Article</span>
                   <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                </Link>
               </div>
             </div>
           </StaggerItem>
@@ -399,13 +400,13 @@ export default function LandingPage({
                 <p className="text-xs text-[#64748B] leading-relaxed flex-1 mb-6 text-justify">
                   A security guideline checklist decoding UPI requests, duplicate OTP collection forms, and smart physical credential management.
                 </p>
-                <button
-                  onClick={() => { onPageChange('blog-detail', 'protect-online-banking-upi-frauds-security'); if (typeof window !== 'undefined') window.scrollTo(0,0); }}
+                <Link
+                  to="/blogs/protect-online-banking-upi-frauds-security"
                   className="text-xs font-bold text-[#00C2FF] flex items-center gap-1.5 self-start cursor-pointer hover:text-white transition-colors"
                 >
                   <span>Read Full Article</span>
                   <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+                </Link>
               </div>
             </div>
           </StaggerItem>

@@ -1,4 +1,5 @@
 import { useState, FormEvent, useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Search, Clock, Star, Copy, FileText, CheckCircle2, ChevronRight, Share2, MapPin, Building, Globe, Activity, Map, Navigation, Database, Phone, Mail, Box, Shield, Calendar, Calculator, Bookmark, RotateCcw, ChevronDown, Check, X } from 'lucide-react';
 
 // Custom Portal Components
@@ -1056,25 +1057,119 @@ function EmiModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-export default function App() {
-  const [currentPage, setCurrentPage] = useState<'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer'>('home');
-  const [selectedBlogSlug, setSelectedBlogSlug] = useState<string | null>(null);
-  const [activeTool, setActiveTool] = useState<'micr' | 'swift' | 'holidays' | 'emi' | null>(null);
+function AppContent() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+
+  const [currentPage, setCurrentPageState] = useState<'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer'>('home');
+  const [selectedBlogSlug, setSelectedBlogSlugState] = useState<string | null>(null);
+  const [activeTool, setActiveToolState] = useState<'micr' | 'swift' | 'holidays' | 'emi' | null>(null);
+  const [queryInput, setQueryInput] = useState('');
+  const [searchMode, setSearchModeState] = useState<SearchMode>('master');
+
+  const setCurrentPage = (page: 'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer') => {
+    setCurrentPageState(page);
+  };
+  const setSelectedBlogSlug = (slug: string | null) => {
+    setSelectedBlogSlugState(slug);
+  };
 
   const handlePageChange = (page: 'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer', slug?: string) => {
-    setCurrentPage(page);
-    if (slug) {
-      setSelectedBlogSlug(slug);
-    } else {
-      setSelectedBlogSlug(null);
+    if (page === 'home') {
+      navigate('/');
+    } else if (page === 'search') {
+      navigate('/search/' + searchMode);
+    } else if (page === 'blogs') {
+      navigate('/blogs');
+    } else if (page === 'blog-detail' && slug) {
+      navigate('/blogs/' + slug);
+    } else if (page === 'privacy' || page === 'terms' || page === 'disclaimer') {
+      navigate('/' + page);
     }
     if (typeof window !== 'undefined') {
       window.scrollTo(0, 0);
     }
   };
 
-  const [queryInput, setQueryInput] = useState('');
-  const [searchMode, setSearchMode] = useState<SearchMode>('master');
+  const setSearchMode = (mode: SearchMode) => {
+    navigate('/search/' + mode + (queryInput ? '?q=' + encodeURIComponent(queryInput) : ''));
+  };
+
+  const setActiveTool = (tool: 'micr' | 'swift' | 'holidays' | 'emi' | null) => {
+    if (tool) {
+      navigate('/tools/' + tool);
+    } else {
+      navigate('/search/' + searchMode);
+    }
+  };
+
+  // Parse path and update state
+  useEffect(() => {
+    const path = location.pathname;
+    const queryQ = searchParams.get('q') || '';
+
+    // 1. Legal routes
+    if (path === '/privacy') {
+      setCurrentPageState('privacy');
+      setSelectedBlogSlugState(null);
+      setActiveToolState(null);
+    } else if (path === '/terms') {
+      setCurrentPageState('terms');
+      setSelectedBlogSlugState(null);
+      setActiveToolState(null);
+    } else if (path === '/disclaimer') {
+      setCurrentPageState('disclaimer');
+      setSelectedBlogSlugState(null);
+      setActiveToolState(null);
+    }
+    // 2. Blog routes
+    else if (path === '/blogs') {
+      setCurrentPageState('blogs');
+      setSelectedBlogSlugState(null);
+      setActiveToolState(null);
+    } else if (path.startsWith('/blogs/')) {
+      const slug = path.substring(7); // remove '/blogs/'
+      setCurrentPageState('blog-detail');
+      setSelectedBlogSlugState(slug);
+      setActiveToolState(null);
+    }
+    // 3. Tool routes
+    else if (path.startsWith('/tools/')) {
+      const tool = path.substring(7) as 'micr' | 'swift' | 'holidays' | 'emi';
+      setCurrentPageState('search');
+      setActiveToolState(tool);
+    }
+    // 4. Search routes
+    else if (path === '/search') {
+      setCurrentPageState('search');
+      setSearchModeState('master');
+      setActiveToolState(null);
+    } else if (path.startsWith('/search/')) {
+      const mode = path.substring(8) as SearchMode;
+      setCurrentPageState('search');
+      if (['master', 'ifsc', 'location', 'pincode'].includes(mode)) {
+        setSearchModeState(mode);
+      }
+      setActiveToolState(null);
+    }
+    // 5. Home route fallback
+    else {
+      setCurrentPageState('home');
+      setSelectedBlogSlugState(null);
+      setActiveToolState(null);
+    }
+
+    // Set search query if present in query parameters
+    if (queryQ) {
+      setQueryInput(queryQ);
+      // Wait for a tick to let state set, then trigger search
+      setTimeout(() => {
+        const currentMode = path.startsWith('/search/') ? (path.substring(8) as SearchMode) : 'master';
+        handleSearch(undefined, queryQ, currentMode);
+      }, 50);
+    }
+  }, [location.pathname, searchParams]);
   const [loading, setLoading] = useState(false);
   const [showMobileNav, setShowMobileNav] = useState(false);
   const [result, setResult] = useState<IfscDetails | null>(null);
@@ -2593,5 +2688,15 @@ export default function App() {
       )}
 
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="*" element={<AppContent />} />
+      </Routes>
+    </BrowserRouter>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building, Heart, ArrowUp, Send, CheckCircle2, Star, 
@@ -226,9 +227,9 @@ export default function Footer({ onPageChange, onSearchModeChange }: FooterProps
           </div>
 
           <div className="flex items-center gap-6 text-xs text-[#94A3B8]">
-            <button onClick={() => { onPageChange('privacy'); scrollToTop(); }} className="hover:text-[#00C2FF] transition-colors cursor-pointer">Privacy</button>
-            <button onClick={() => { onPageChange('terms'); scrollToTop(); }} className="hover:text-[#00C2FF] transition-colors cursor-pointer">Terms</button>
-            <button onClick={() => { onPageChange('disclaimer'); scrollToTop(); }} className="hover:text-[#00C2FF] transition-colors cursor-pointer">Disclaimer</button>
+            <Link to="/privacy" onClick={scrollToTop} className="hover:text-[#00C2FF] transition-colors cursor-pointer">Privacy</Link>
+            <Link to="/terms" onClick={scrollToTop} className="hover:text-[#00C2FF] transition-colors cursor-pointer">Terms</Link>
+            <Link to="/disclaimer" onClick={scrollToTop} className="hover:text-[#00C2FF] transition-colors cursor-pointer">Disclaimer</Link>
           </div>
         </div>
 

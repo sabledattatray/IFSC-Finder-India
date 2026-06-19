@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Building, ChevronDown, Globe, FileText, MapPin, Map, 
@@ -78,8 +79,9 @@ export default function Header({
           <div className="flex items-center justify-between h-16 md:h-20">
             
             {/* Logo Brand */}
-            <div 
-              onClick={() => { onPageChange('home'); setMegaMenuOpen(false); }} 
+            <Link 
+              to="/"
+              onClick={() => { setMegaMenuOpen(false); }} 
               className="flex items-center gap-3 cursor-pointer select-none group"
             >
               <div className="p-2.5 rounded-xl bg-gradient-to-br from-[#0057D9] to-[#00C2FF] text-white shadow-lg shadow-[#0057D9]/20 group-hover:scale-105 transition-all duration-300">
@@ -93,15 +95,15 @@ export default function Header({
                   National Directory
                 </span>
               </div>
-            </div>
+            </Link>
 
             {/* Desktop Navigation Link bar */}
             <nav className="hidden md:flex items-center gap-1.5">
               {navItems.map((item) => (
-                <button
+                <Link
                   key={item.label}
+                  to={item.page === 'home' ? '/' : `/${item.page}`}
                   onClick={() => {
-                    onPageChange(item.page);
                     setMegaMenuOpen(false);
                   }}
                   className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer ${
@@ -111,7 +113,7 @@ export default function Header({
                   }`}
                 >
                   {item.label}
-                </button>
+                </Link>
               ))}
 
               {/* Resources Trigger - Mega Menu */}
@@ -362,20 +364,20 @@ export default function Header({
               <div className="p-6 pt-24 space-y-6 flex-1">
                 <div className="space-y-1.5">
                   {navItems.map((item) => (
-                    <button
+                    <Link
                       key={item.label}
+                      to={item.page === 'home' ? '/' : `/${item.page}`}
                       onClick={() => {
-                        onPageChange(item.page);
                         setMobileMenuOpen(false);
                       }}
-                      className={`w-full text-left p-3.5 rounded-xl text-sm font-semibold transition-all ${
+                      className={`w-full text-left p-3.5 rounded-xl text-sm font-semibold transition-all block ${
                         currentPage === item.page
                           ? 'text-white bg-white/[0.04] border border-white/[0.08]'
                           : 'text-[#94A3B8] hover:text-white hover:bg-white/[0.02]'
                       }`}
                     >
                       {item.label}
-                    </button>
+                    </Link>
                   ))}
                 </div>
 
