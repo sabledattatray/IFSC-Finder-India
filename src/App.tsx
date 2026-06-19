@@ -2218,23 +2218,25 @@ function AppContent() {
                               onClick={() => {
                                 setResult(res);
                               }}
-                              className="glass-card p-5 hover:border-[#00E5A0]/30 transition-all cursor-pointer shadow-md relative overflow-hidden group"
+                              className="glass-card p-5 hover:border-[#00E5A0]/40 hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(0,229,160,0.12)] transition-all duration-300 cursor-pointer relative overflow-hidden group"
                             >
-                              <div className="absolute top-0 right-0 py-1 px-3 bg-[#00E5A0]/10 border-l border-b border-[#00E5A0]/30 rounded-bl text-[9px] font-bold tracking-widest text-[#00E5A0] font-mono">
+                              <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#00E5A0] h-0 group-hover:h-full transition-all duration-300"></div>
+                              <div className="absolute top-0 right-0 py-1 px-3 bg-[#00E5A0]/10 border-l border-b border-[#00E5A0]/20 rounded-bl text-[8px] font-bold tracking-widest text-[#00E5A0] font-mono">
                                 LIVE WEB VERIFIED
                               </div>
-                              <h4 className="font-bold text-[#E2E8F0] text-sm leading-snug break-words pr-20 group-hover:text-[#00E5A0] transition-colors">{res.BANK}</h4>
-                              <p className="text-xs text-[#64748B] font-medium mt-1 uppercase tracking-wide">{res.BRANCH}</p>
-                              <p className="text-xs text-[#64748B] mt-3 bg-[#081120]/60 p-2.5 rounded-xl border border-white/[0.06] font-mono break-all line-clamp-2">
+                              <h4 className="font-bold text-white text-sm leading-snug break-words pr-24 group-hover:text-[#00E5A0] transition-colors duration-200">{res.BANK}</h4>
+                              <p className="text-[10px] text-[#64748B] font-bold mt-1.5 uppercase tracking-wider">{res.BRANCH}</p>
+                              
+                              <p className="text-xs text-[#64748B] group-hover:text-[#94A3B8] transition-colors mt-3 bg-[#081120]/40 p-3 rounded-lg border border-white/[0.04] font-mono break-all line-clamp-2">
                                 {res.ADDRESS}
                               </p>
                               
-                              <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-white/[0.06] text-xs font-mono">
-                                <div>
-                                  <span className="text-[#64748B]">IFSC: </span>
-                                  <span className="text-[#00C2FF] font-bold font-mono text-sm tracking-wider">{res.IFSC}</span>
+                              <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-white/[0.04] text-xs font-mono">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[#64748B]">IFSC:</span>
+                                  <span className="text-[#00C2FF] font-bold font-mono tracking-wider bg-[#00C2FF]/10 border border-[#00C2FF]/20 px-2 py-0.5 rounded text-xs">{res.IFSC}</span>
                                 </div>
-                                <span className="text-[#00C2FF] hover:underline font-bold font-sans">View Details →</span>
+                                <span className="text-[#00E5A0] font-bold font-sans text-xs group-hover:translate-x-1 transition-transform flex items-center gap-0.5">View Console →</span>
                               </div>
                             </div>
                           ))}
@@ -2284,38 +2286,40 @@ function AppContent() {
                        )}
 
                        {searchResults && searchResults.length > 0 && (
-                         <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 custom-scrollbar">
-                           {searchResults.map((res, i) => (
-                             <div 
-                               key={`local-match-${res.IFSC}-${i}`}
-                               onClick={() => {
-                                 handleSearch(undefined, res.IFSC, 'ifsc');
-                               }}
-                               className="glass-card p-5 hover:border-[#00C2FF]/30 transition-all cursor-pointer shadow-md group relative overflow-hidden"
-                             >
-                               <div className="absolute top-0 right-0 py-1 px-3 bg-white/[0.03] border-l border-b border-white/[0.06] rounded-bl text-[8px] font-bold tracking-widest text-[#64748B] font-mono">
-                                 OFFLINE CSV ARCHIVE
-                               </div>
-                               <h4 className="font-bold text-[#E2E8F0] text-sm leading-snug break-words pr-20 group-hover:text-[#00C2FF] transition-colors">{res.BANK}</h4>
-                               <p className="text-xs text-[#64748B] font-medium mt-1 uppercase tracking-wide">{res.BRANCH}</p>
-                               <p className="text-xs text-[#64748B] mt-3 bg-[#081120]/60 p-2.5 rounded-xl border border-white/[0.06] font-mono break-all line-clamp-2">
-                                 {res.ADDRESS}
-                               </p>
-                               <div className="flex justify-between items-center mt-3 text-xs text-[#64748B] font-mono">
-                                 <span>City/Village: <strong className="text-[#94A3B8] font-normal">{res.CITY}</strong></span>
-                               </div>
-                               
-                               <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-white/[0.06] text-xs font-mono">
-                                 <div>
-                                   <span className="text-[#64748B]">IFSC: </span>
-                                   <span className="text-[#00C2FF] font-bold font-mono text-sm tracking-wider">{res.IFSC}</span>
-                                 </div>
-                                 <span className="text-[#00C2FF] hover:underline font-bold font-sans">View Details →</span>
-                               </div>
-                             </div>
-                           ))}
-                         </div>
-                       )}
+                          <div className="space-y-4 max-h-[750px] overflow-y-auto pr-2 custom-scrollbar">
+                            {searchResults.map((res, i) => (
+                              <div 
+                                key={`local-match-${res.IFSC}-${i}`}
+                                onClick={() => {
+                                  handleSearch(undefined, res.IFSC, 'ifsc');
+                                }}
+                                className="glass-card p-5 hover:border-[#00C2FF]/40 hover:-translate-y-1 hover:shadow-[0_0_20px_rgba(0,194,255,0.12)] transition-all duration-300 cursor-pointer relative overflow-hidden group"
+                              >
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#00C2FF] h-0 group-hover:h-full transition-all duration-300"></div>
+                                <div className="absolute top-0 right-0 py-1 px-3 bg-white/[0.02] border-l border-b border-white/[0.06] rounded-bl text-[8px] font-bold tracking-widest text-[#64748B] font-mono">
+                                  OFFLINE CSV ARCHIVE
+                                </div>
+                                <h4 className="font-bold text-white text-sm leading-snug break-words pr-24 group-hover:text-[#00C2FF] transition-colors duration-200">{res.BANK}</h4>
+                                <p className="text-[10px] text-[#64748B] font-bold mt-1.5 uppercase tracking-wider">{res.BRANCH}</p>
+                                
+                                <p className="text-xs text-[#64748B] group-hover:text-[#94A3B8] transition-colors mt-3 bg-[#081120]/40 p-3 rounded-lg border border-white/[0.04] font-mono break-all line-clamp-2">
+                                  {res.ADDRESS}
+                                </p>
+                                <div className="flex justify-between items-center mt-3 text-[11px] text-[#64748B] font-mono">
+                                  <span>City: <span className="text-[#94A3B8] font-medium bg-white/[0.04] px-1.5 py-0.5 rounded border border-white/[0.06]">{res.CITY}</span></span>
+                                </div>
+                                
+                                <div className="flex items-center justify-between gap-2 mt-4 pt-3 border-t border-white/[0.04] text-xs font-mono">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="text-[#64748B]">IFSC:</span>
+                                    <span className="text-[#00C2FF] font-bold font-mono tracking-wider bg-[#00C2FF]/10 border border-[#00C2FF]/20 px-2 py-0.5 rounded text-xs">{res.IFSC}</span>
+                                  </div>
+                                  <span className="text-[#00C2FF] font-bold font-sans text-xs group-hover:translate-x-1 transition-transform flex items-center gap-0.5">View Console →</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                      </div>
 
                   </div>
@@ -2338,125 +2342,178 @@ function AppContent() {
                      <span className="font-medium text-[#E2E8F0]">{result.BRANCH}</span>
                    </div>
 
-                  <div className="glass-card-strong shadow-2xl relative overflow-hidden">
+                  <div className="glass-card-strong shadow-2xl relative overflow-hidden animate-in fade-in zoom-in duration-300">
                     <div className="absolute top-0 w-full h-1 bg-gradient-to-r from-[#0057D9] via-[#00C2FF] to-[#00E5A0]"></div>
-                    <div className="p-6 md:p-8 flex flex-col md:flex-row md:items-start justify-between gap-6 border-b border-white/[0.06] bg-white/[0.02]">
+                    
+                    {/* Premium Header */}
+                    <div className="p-4 md:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.06] bg-white/[0.02]">
                       <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
+                        <div className="flex items-center gap-3 mb-1">
                           <div className="p-2 rounded-xl bg-[#0057D9]/15 border border-[#0057D9]/20">
-                            <Building className="text-[#00C2FF] w-6 h-6 flex-shrink-0" />
+                            <Building className="text-[#00C2FF] w-5 h-5 flex-shrink-0" />
                           </div>
-                          <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight break-words">{result.BANK}</h1>
+                          <h1 className="text-lg md:text-xl font-bold text-white tracking-tight break-words">{result.BANK}</h1>
                         </div>
-                        <h2 className="text-base md:text-lg text-[#64748B] font-medium sm:ml-[52px] break-words">{result.BRANCH} Branch</h2>
+                        <h2 className="text-xs md:text-sm text-[#64748B] font-medium sm:ml-[44px] break-words">{result.BRANCH} Branch</h2>
                       </div>
-                      <div className="flex flex-col gap-3 min-w-[200px]">
-                         <div
-                            onClick={() => copyToClipboard(result.IFSC)}
-                            className="glass-card !rounded-xl p-3 text-center hover:border-[#00C2FF]/40 flex items-center justify-between cursor-pointer transition-all group/copy select-none"
-                            title="Click to copy IFSC Code"
-                         >
-                            <span className="text-xs uppercase tracking-widest font-bold text-[#64748B]">{copied ? 'Copied ✓' : 'IFSC Code'}</span>
-                            <div className="flex items-center gap-2">
-                               <span className="font-mono text-[#00E5A0] font-bold text-lg">{result.IFSC}</span>
-                               {copied ? (
-                                 <CheckCircle2 className="w-4 h-4 text-[#00E5A0] animate-in zoom-in duration-200" />
-                               ) : (
-                                 <Copy className="w-4 h-4 text-[#64748B] group-hover/copy:text-[#00C2FF] transition-colors" />
-                               )}
-                            </div>
-                         </div>
-                         <div className="flex items-center gap-2">
-                            <button onClick={() => toggleFavorite(result.IFSC)} className={`flex-1 py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-2 border transition-all ${favorites.includes(result.IFSC) ? 'bg-amber-400/10 border-amber-400/30 text-amber-400' : 'bg-white/[0.04] border-white/[0.08] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white'}`}>
-                              <Star className="w-4 h-4" fill={favorites.includes(result.IFSC) ? 'currentColor' : 'none'}/> {favorites.includes(result.IFSC) ? 'Saved' : 'Save'}
-                            </button>
-                            <button onClick={openMaps} className="flex-1 py-2 rounded-xl font-bold text-sm btn-primary flex items-center justify-center gap-2 transition-all">
-                              <MapPin className="w-4 h-4"/> Map
-                            </button>
-                         </div>
+                      
+                      <div className="flex items-center gap-2.5 self-center sm:self-auto">
+                        <button onClick={() => toggleFavorite(result.IFSC)} className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all ${favorites.includes(result.IFSC) ? 'bg-amber-400/10 border-amber-400/30 text-amber-400' : 'bg-white/[0.04] border-white/[0.08] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white'}`}>
+                          <Star className="w-3.5 h-3.5" fill={favorites.includes(result.IFSC) ? 'currentColor' : 'none'}/> {favorites.includes(result.IFSC) ? 'Saved' : 'Save'}
+                        </button>
+                        <button onClick={openMaps} className="px-3 py-2 rounded-xl font-bold text-xs btn-primary flex items-center gap-1.5 transition-all">
+                          <MapPin className="w-3.5 h-3.5"/> Map
+                        </button>
+                        <button 
+                          onClick={() => {
+                            navigator.clipboard.writeText(window.location.href);
+                            alert("Branch link copied to clipboard!");
+                          }} 
+                          className="px-3 py-2 rounded-xl font-bold text-xs bg-white/[0.04] border border-white/[0.08] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white flex items-center gap-1.5 transition-all"
+                        >
+                          <Share2 className="w-3.5 h-3.5"/> Share
+                        </button>
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-white/[0.05]">
-                       {/* Basic Info */}
-                       <div className="p-6 space-y-6">
-                          <div>
-                            <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#64748B] flex items-center gap-2 mb-3 border-b border-white/[0.06] pb-2"><FileText className="w-4 h-4"/> Identification</h3>
-                            <div className="space-y-4">
-                              <div>
-                                <span className="block text-[#64748B] text-xs font-mono mb-1">MICR CODE</span>
-                                <span className="font-mono text-[#E2E8F0] tracking-widest">{result.MICR || 'Not Available'}</span>
+                    {/* Quick Monospace Metrics Ribbon */}
+                    <div className="flex flex-wrap items-center gap-x-6 gap-y-3 p-4 bg-[#030712]/40 border-b border-white/[0.06] font-mono text-xs">
+                      <div className="flex items-center gap-2 group cursor-pointer select-none" onClick={() => copyToClipboard(result.IFSC)}>
+                        <span className="text-[#64748B] font-bold uppercase tracking-wider text-[10px]">IFSC</span>
+                        <span className="text-[#00E5A0] font-bold tracking-wider font-mono bg-[#00E5A0]/10 border border-[#00E5A0]/20 px-2.5 py-1 rounded flex items-center gap-1.5 transition-colors group-hover:bg-[#00E5A0]/15">
+                          {result.IFSC}
+                          {copied ? <Check className="w-3 h-3 text-[#00E5A0]"/> : <Copy className="w-3 h-3 text-[#64748B] group-hover:text-white transition-colors" />}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#64748B] font-bold uppercase tracking-wider text-[10px]">MICR</span>
+                        <span className="text-white font-bold tracking-wider font-mono bg-white/[0.04] border border-white/[0.08] px-2.5 py-1 rounded">
+                          {result.MICR && result.MICR !== '-' ? result.MICR : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#64748B] font-bold uppercase tracking-wider text-[10px]">SWIFT</span>
+                        <span className="text-purple-300 font-bold tracking-wider font-mono bg-purple-500/10 border border-purple-500/20 px-2.5 py-1 rounded">
+                          {result.SWIFT && result.SWIFT !== '-' ? result.SWIFT : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#64748B] font-bold uppercase tracking-wider text-[10px]">BRANCH CODE</span>
+                        <span className="text-orange-300 font-bold tracking-wider font-mono bg-orange-500/10 border border-orange-500/20 px-2.5 py-1 rounded">
+                          {result.BRANCH_CODE || 'N/A'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Balanced 2-Column Split Details Section */}
+                    <div className="grid grid-cols-1 lg:grid-cols-5 divide-y lg:divide-y-0 lg:divide-x divide-white/[0.05]">
+                      
+                      {/* Left: Location, Address & Contacts (Col Span 3) */}
+                      <div className="lg:col-span-3 p-5 md:p-6 space-y-5">
+                        <div className="bg-[#081120]/40 p-4 rounded-xl border border-white/[0.04]">
+                          <div className="flex items-center justify-between border-b border-white/[0.04] pb-2 mb-3">
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-[#64748B] flex items-center gap-1.5">
+                              <Map className="w-3.5 h-3.5"/> Full Address
+                            </span>
+                            <button onClick={() => { navigator.clipboard.writeText(result.ADDRESS); alert("Address copied!"); }} className="text-[10px] text-[#00C2FF] hover:underline font-bold font-mono flex items-center gap-1 cursor-pointer">
+                              <Copy className="w-3 h-3"/> COPY
+                            </button>
+                          </div>
+                          <p className="text-[#E2E8F0] font-medium leading-relaxed text-xs md:text-sm">{result.ADDRESS}</p>
+                          
+                          {/* Horizontal Tag Ribbon for Location Metadata */}
+                          <div className="flex flex-wrap gap-2 text-[9px] font-mono mt-4 pt-3 border-t border-white/[0.03]">
+                            <span className="px-2.5 py-1 bg-white/[0.02] border border-white/[0.06] text-[#94A3B8] rounded-full">
+                              <span className="text-[#64748B] font-bold">STATE:</span> <strong className="text-white font-semibold">{result.STATE}</strong>
+                            </span>
+                            <span className="px-2.5 py-1 bg-white/[0.02] border border-white/[0.06] text-[#94A3B8] rounded-full">
+                              <span className="text-[#64748B] font-bold">DISTRICT:</span> <strong className="text-white font-semibold">{result.DISTRICT}</strong>
+                            </span>
+                            <span className="px-2.5 py-1 bg-white/[0.02] border border-white/[0.06] text-[#94A3B8] rounded-full">
+                              <span className="text-[#64748B] font-bold">TALUKA:</span> <strong className="text-white font-semibold">{result.TALUKA || 'GENERAL'}</strong>
+                            </span>
+                            <span className="px-2.5 py-1 bg-white/[0.02] border border-white/[0.06] text-[#94A3B8] rounded-full">
+                              <span className="text-[#64748B] font-bold">CITY:</span> <strong className="text-white font-semibold">{result.CITY}</strong>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Contacts Summary Card */}
+                        <div>
+                          <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#64748B] flex items-center gap-2 mb-3 border-b border-white/[0.06] pb-2"><Phone className="w-3.5 h-3.5"/> Contact Details</h3>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="flex items-center gap-3 bg-[#081120]/30 p-2.5 rounded-xl border border-white/[0.04]">
+                              <div className="bg-[#0057D9]/10 border border-[#0057D9]/20 p-2 rounded-lg flex-shrink-0"><Phone className="w-3.5 h-3.5 text-[#00C2FF]"/></div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-[9px] uppercase font-bold text-[#64748B] tracking-wider">Phone</span>
+                                <span className="font-mono text-[#E2E8F0] font-semibold text-xs truncate">{result.CONTACT && result.CONTACT.toLowerCase() !== 'not provided' ? result.CONTACT : 'Not Provided'}</span>
                               </div>
-                              <div>
-                                <span className="block text-[#64748B] text-xs font-mono mb-1">SWIFT CODE</span>
-                                <span className="font-mono text-[#E2E8F0] tracking-widest">{result.SWIFT || 'Not Available'}</span>
-                              </div>
-                              <div>
-                                <span className="block text-[#64748B] text-xs font-mono mb-1">BRANCH CODE</span>
-                                <span className="font-mono text-[#E2E8F0] tracking-widest">{result.BRANCH_CODE || 'Not Available'}</span>
+                            </div>
+                            <div className="flex items-center gap-3 bg-[#081120]/30 p-2.5 rounded-xl border border-white/[0.04]">
+                              <div className="bg-[#0057D9]/10 border border-[#0057D9]/20 p-2 rounded-lg flex-shrink-0"><Mail className="w-3.5 h-3.5 text-[#00C2FF]"/></div>
+                              <div className="flex flex-col min-w-0">
+                                <span className="text-[9px] uppercase font-bold text-[#64748B] tracking-wider">Email</span>
+                                <span className="text-[#00C2FF] font-semibold text-xs truncate" title={result.EMAIL}>{result.EMAIL || 'Not Provided'}</span>
                               </div>
                             </div>
                           </div>
-                       </div>
+                        </div>
+                      </div>
 
-                       {/* Location Info */}
-                       <div className="p-6 space-y-6 lg:col-span-1">
-                          <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#64748B] flex items-center gap-2 mb-3 border-b border-white/[0.06] pb-2"><Map className="w-4 h-4"/> Full Address</h3>
-                          <p className="text-[#94A3B8] font-medium leading-relaxed bg-[#081120]/60 p-4 rounded-xl border border-white/[0.06] shadow-sm">
-                            {result.ADDRESS}
-                          </p>
-                          <div className="space-y-3">
-                             <div className="flex items-center justify-between py-1 border-b border-white/[0.05]">
-                               <span className="text-[#64748B] text-xs font-bold">STATE</span>
-                               <span className="font-semibold text-[#E2E8F0]">{result.STATE}</span>
-                             </div>
-                             <div className="flex items-center justify-between py-1 border-b border-white/[0.05]">
-                               <span className="text-[#64748B] text-xs font-bold">DISTRICT</span>
-                               <span className="font-semibold text-[#E2E8F0]">{result.DISTRICT}</span>
-                             </div>
-                             <div className="flex items-center justify-between py-1 border-b border-white/[0.05]">
-                               <span className="text-[#64748B] text-xs font-bold">TALUKA / TAHSIL</span>
-                               <span className="font-semibold text-[#E2E8F0]">{result.TALUKA || 'GENERAL'}</span>
-                             </div>
-                             <div className="flex items-center justify-between py-1 border-b border-white/[0.05]">
-                               <span className="text-[#64748B] text-xs font-bold">CITY / VILLAGE</span>
-                               <span className="font-semibold text-[#E2E8F0]">{result.CITY}</span>
-                             </div>
+                      {/* Right: Consolidated Capabilities Status Panel (Col Span 2) */}
+                      <div className="lg:col-span-2 p-5 md:p-6 bg-white/[0.01] flex flex-col justify-between">
+                        <div className="space-y-4">
+                          <h3 className="text-[10px] font-bold uppercase tracking-widest text-[#64748B] flex items-center gap-2 border-b border-white/[0.06] pb-2"><Shield className="w-3.5 h-3.5"/> Branch Status & Features</h3>
+                          
+                          <div className="divide-y divide-white/[0.04]">
+                            {/* Facilities checklist */}
+                            {(() => {
+                              const renderRow = (label: string, value: boolean | string | undefined, desc: string) => {
+                                const isAvailable = !!value && value !== 'NO' && value !== 'CALL';
+                                const isCall = value === 'CALL';
+                                return (
+                                  <div className="flex items-center justify-between py-2.5 px-1 hover:bg-white/[0.01] transition-colors">
+                                    <div className="flex flex-col">
+                                      <span className="text-xs font-bold text-white">{label}</span>
+                                      <span className="text-[9px] text-[#64748B]">{desc}</span>
+                                    </div>
+                                    <div className="flex items-center">
+                                      {isCall ? (
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[9px] font-bold font-mono tracking-wider bg-[#00C2FF]/10 border border-[#00C2FF]/20 text-[#00C2FF]">
+                                          CALL
+                                        </span>
+                                      ) : isAvailable ? (
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold font-mono text-[#56D364] bg-[#13231B] border border-[#2EA043]/20">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#3FB950] animate-pulse" />
+                                          ACTIVE
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[9px] font-bold font-mono text-[#FF7B72] bg-[#211214] border border-[#F85149]/15">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-[#F85149]" />
+                                          OFFLINE
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              };
+                              return (
+                                <div className="space-y-0.5">
+                                  {renderRow("NEFT Facility", result.NEFT, "National Electronic Funds Transfer")}
+                                  {renderRow("RTGS Facility", result.RTGS, "Real Time Gross Settlement")}
+                                  {renderRow("IMPS Facility", result.IMPS, "Immediate Payment Service")}
+                                  {renderRow("UPI Payments", result.UPI, "Unified Payments Interface")}
+                                  {renderRow("Onsite ATM", result.ATM, "ATM cash dispenser onsite")}
+                                  {renderRow("Cash Deposit", result.CASH_DEPOSIT, "Direct cash deposit machine")}
+                                  {renderRow("Safe Lockers", result.LOCKER, "Lockers for valuable assets")}
+                                  {renderRow("Foreign Exchange", "CALL", "Foreign currency conversion")}
+                                </div>
+                              );
+                            })()}
                           </div>
+                        </div>
+                      </div>
 
-                          <div className="space-y-3 mt-6">
-                            <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#64748B] flex items-center gap-2 mb-3 border-b border-white/[0.06] pb-2"><Phone className="w-4 h-4"/> Contact Details</h3>
-                             <div className="flex items-center gap-3">
-                               <div className="bg-[#0057D9]/10 border border-[#0057D9]/20 p-2 rounded-xl"><Phone className="w-4 h-4 text-[#00C2FF]"/></div>
-                               <span className="font-mono text-[#E2E8F0] font-bold">{result.CONTACT && result.CONTACT.toLowerCase() !== 'not provided' ? result.CONTACT : 'N/A'}</span>
-                             </div>
-                             <div className="flex items-center gap-3">
-                               <div className="bg-[#0057D9]/10 border border-[#0057D9]/20 p-2 rounded-xl"><Mail className="w-4 h-4 text-[#00C2FF]"/></div>
-                               <span className="text-[#00C2FF]">{result.EMAIL || 'N/A'}</span>
-                             </div>
-                          </div>
-                       </div>
-
-                       {/* Amenities */}
-                       <div className="p-6 bg-white/[0.02]">
-                          <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#64748B] flex items-center gap-2 mb-4 border-b border-white/[0.06] pb-2"><Activity className="w-4 h-4"/> Banking Facilities</h3>
-                          <div className="grid grid-cols-2 gap-3 mb-6">
-                             <RenderBooleanBadge label="NEFT" value={result.NEFT} />
-                             <RenderBooleanBadge label="RTGS" value={result.RTGS} />
-                             <RenderBooleanBadge label="IMPS" value={result.IMPS} />
-                             <RenderBooleanBadge label="UPI" value={result.UPI} />
-                          </div>
-                          <h3 className="text-[11px] font-bold uppercase tracking-widest text-[#64748B] flex items-center gap-2 mb-4 border-b border-white/[0.06] pb-2"><Shield className="w-4 h-4"/> Branch Amenities</h3>
-                          <div className="grid grid-cols-2 gap-3">
-                             <RenderBooleanBadge label="ATM Onsite" value={result.ATM} />
-                             <RenderBooleanBadge label="Cash Deposit" value={result.CASH_DEPOSIT} />
-                             <RenderBooleanBadge label="Lockers" value={result.LOCKER} pillTextColorClass="text-black font-semibold" />
-                             <div className="p-3 rounded-lg border flex flex-col items-center justify-center gap-1.5 shadow-xs bg-[#0057D9]/10 border-[#0057D9]/20 text-[#00C2FF]">
-                                <span className="text-[10px] font-bold uppercase tracking-widest text-[#00C2FF]/80">Foreign Ex</span>
-                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold font-mono tracking-wider bg-[#00C2FF]/10 border border-[#00C2FF]/20 text-[#00C2FF]">CALL</span>
-                              </div>
-                          </div>
-                       </div>
                     </div>
                   </div>
 

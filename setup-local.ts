@@ -151,6 +151,9 @@ async function run() {
   }
 
   console.log(`[Setup] Seeding complete! ${inserted} records inserted. ${errors} errors.`);
+  console.log("[Setup] Optimizing database with VACUUM FULL and CHECKPOINT...");
+  await client.exec("VACUUM FULL;");
+  await client.exec("CHECKPOINT;");
   await client.close();
 }
 
