@@ -1364,34 +1364,37 @@ function AppContent() {
         setOnlineResults(null);
         setOnlineSources([]);
         setOnlineError(null);
-        setOnlineLoading(true);
+        setOnlineLoading(false);
 
         setHistory(prev => {
           const newHist = prev.filter(item => item !== query);
           return [query, ...newHist].slice(0, 10);
         });
 
-        const localPromise = fetch(`/api/search?q=${encodeURIComponent(query)}&mode=master`)
-          .then(async (res) => {
-            if (!res.ok) throw new Error('Local search failed');
-            return res.json();
-          })
-          .then((data) => {
-            setSearchResults((data || []).map((d: any) => enrichDetails(d)));
-          })
-          .catch((err) => {
-            console.error("Local search err:", err);
-            setSearchResults([]);
-          });
+        // 1. Fetch from local database first
+        let localData: any[] = [];
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=master`);
+          if (res.ok) {
+            localData = await res.json();
+          }
+        } catch (err) {
+          console.error("Local search err:", err);
+        }
 
-        const onlinePromise = fetch(`/api/online-search?q=${encodeURIComponent(query)}`)
-          .then(async (res) => {
+        const enrichedLocal = (localData || []).map((d: any) => enrichDetails(d));
+        setSearchResults(enrichedLocal);
+
+        // 2. Decide if online fallback is needed (only if local search returned 0 results)
+        if (enrichedLocal.length === 0) {
+          setOnlineLoading(true);
+          try {
+            const res = await fetch(`/api/online-search?q=${encodeURIComponent(query)}`);
             if (!res.ok) throw new Error('Online search failed');
-            return res.json();
-          })
-          .then((data) => {
+            const data = await res.json();
             if (data.error) {
               setOnlineError(data.error);
+              setOnlineResults([]);
             } else {
               setOnlineResults((data.results || []).map((d: any) => enrichDetails({
                 ...d,
@@ -1400,17 +1403,19 @@ function AppContent() {
               })));
               setOnlineSources(data.sources || []);
             }
-          })
-          .catch((err) => {
+          } catch (err) {
             console.error("Online search err:", err);
             setOnlineError("Could not execute live web search. Check server logs.");
-          })
-          .finally(() => {
+            setOnlineResults([]);
+          } finally {
             setOnlineLoading(false);
-          });
-
-        await localPromise;
+          }
+        } else {
+          // Local results exist, so online search is skipped entirely.
+          setOnlineResults([]);
+        }
         setLoading(false);
+
       } else if (currentMode === 'ifsc') {
         let data: IfscDetails | null = null;
         try {
@@ -1423,11 +1428,33 @@ function AppContent() {
         }
 
         if (!data) {
-          const res = await fetch(`/api/branch/${query}`);
-          if (!res.ok) {
-            throw new Error('IFSC code not found in our database');
+          try {
+            const res = await fetch(`/api/branch/${query}`);
+            if (res.ok) {
+              data = await res.json();
+            }
+          } catch (err) {
+            console.error("Local database IFSC query err:", err);
           }
-          data = await res.json();
+        }
+
+        // 3. Fallback to online search if IFSC still not found anywhere!
+        if (!data) {
+          try {
+            const res = await fetch(`/api/online-search?q=${encodeURIComponent(query)}`);
+            if (res.ok) {
+              const onlineRes = await res.json();
+              if (onlineRes.results && onlineRes.results.length > 0) {
+                data = onlineRes.results[0];
+              }
+            }
+          } catch (err) {
+            console.error("IFSC online fallback search failed:", err);
+          }
+        }
+
+        if (!data) {
+          throw new Error('IFSC code not found in our database or online search');
         }
 
         data = enrichDetails(data!);
@@ -1437,15 +1464,38 @@ function AppContent() {
           const newHist = prev.filter(item => item !== query);
           return [query, ...newHist].slice(0, 10);
         });
+
       } else {
         const backendMode = currentMode === 'pincode' ? 'pincode' : 'fuzzy';
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=${backendMode}`);
-        if (!res.ok) {
-          throw new Error('Search request failed');
+        let localData: any[] = [];
+        try {
+          const res = await fetch(`/api/search?q=${encodeURIComponent(query)}&mode=${backendMode}`);
+          if (res.ok) {
+            localData = await res.json();
+          }
+        } catch (err) {
+          console.error("Local search err:", err);
         }
-        const data = await res.json();
-        if (data && data.length > 0) {
-          setSearchResults(data.map((d: any) => enrichDetails(d)));
+
+        let finalData = localData || [];
+
+        // 4. Fallback to online search if no results found locally for pincode/location search!
+        if (finalData.length === 0) {
+          try {
+            const onlineRes = await fetch(`/api/online-search?q=${encodeURIComponent(query)}`);
+            if (onlineRes.ok) {
+              const onlineData = await onlineRes.json();
+              if (onlineData.results && onlineData.results.length > 0) {
+                finalData = onlineData.results;
+              }
+            }
+          } catch (err) {
+            console.error("Pincode/Location online fallback search failed:", err);
+          }
+        }
+
+        if (finalData && finalData.length > 0) {
+          setSearchResults(finalData.map((d: any) => enrichDetails(d)));
         } else {
           setError(`No branches found for query "${query}"`);
         }

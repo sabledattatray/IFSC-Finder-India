@@ -4,13 +4,23 @@ import { bankBranches } from "./schema.js";
 import fs from "fs";
 import * as path from "path";
 
-const db = drizzle(new Pool({
-  host: process.env.SQL_HOST,
-  user: process.env.SQL_USER,
-  password: process.env.SQL_PASSWORD,
-  database: process.env.SQL_DB_NAME,
-  connectionTimeoutMillis: 15000,
-}));
+let pool: Pool;
+if (process.env.DATABASE_URL) {
+  pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false },
+    connectionTimeoutMillis: 15000,
+  });
+} else {
+  pool = new Pool({
+    host: process.env.SQL_HOST,
+    user: process.env.SQL_USER,
+    password: process.env.SQL_PASSWORD,
+    database: process.env.SQL_DB_NAME,
+    connectionTimeoutMillis: 15000,
+  });
+}
+const db = drizzle(pool);
 
 function parseCsvLineCustom(line: string): string[] {
   const result: string[] = [];
