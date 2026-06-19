@@ -1818,7 +1818,7 @@ function AppContent() {
             </div>
 
             {/* Input Bar */}
-             <div className="p-4 bg-[#081120]/50 backdrop-blur-xl border-b border-white/[0.06]">
+             <div className="p-4 bg-[#081120]/50 backdrop-blur-xl border-b border-white/[0.06] relative z-30">
                {searchMode === 'location' ? (
                   <div className="flex flex-col gap-3">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 w-full">
