@@ -30,7 +30,7 @@ let pool: any = null;
 
 const connectionString = process.env.DATABASE_URL || (
   (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.PORT)
-    ? "postgresql://postgres.pgmnnlufpfyrhgdzzuje:Dattatray%401511@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres"
+    ? "postgresql://postgres.pgmnnlufpfyrhgdzzuje:Dattatray%401511@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbounce=true"
     : ""
 );
 
