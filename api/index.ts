@@ -41,10 +41,28 @@ function recToApi(rec: any) {
 
 app.use(express.json());
 
-app.get("/api/debug-status", (req, res) => {
+app.get("/api/debug-status", async (req, res) => {
+  const isUsingPostgres = !!(process.env.DATABASE_URL || process.env.SQL_HOST);
+  let dbStatus = "Unknown";
+  let rowCount = 0;
+  let error = null;
+
+  try {
+    const result = await db.select({ count: sql`COUNT(*)` }).from(bankBranches);
+    rowCount = Number(result[0]?.count || 0);
+    dbStatus = "Connected";
+  } catch (err: any) {
+    dbStatus = "Error";
+    error = err.message;
+  }
+
   res.json({
-    isUsingPostgres: true,
-    geminiKeyConfigured: !!process.env.GEMINI_API_KEY
+    databaseType: isUsingPostgres ? "PostgreSQL" : "PGlite",
+    connectionStatus: dbStatus,
+    rowCount: rowCount,
+    error: error,
+    geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+    envKeys: Object.keys(process.env).filter(k => k.includes("DATABASE") || k.includes("SQL") || k.includes("GEMINI") || k.includes("VERCEL"))
   });
 });
 
