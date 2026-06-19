@@ -5,6 +5,23 @@ import { Pool } from 'pg';
 import { PGlite } from '@electric-sql/pglite';
 import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
 
+import fs from 'fs';
+import path from 'path';
+
+function copyDirSync(src: string, dest: string) {
+  fs.mkdirSync(dest, { recursive: true });
+  const entries = fs.readdirSync(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirSync(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
 dotenv.config();
 
 // Use PostgreSQL (production) when SQL_HOST or DATABASE_URL is set, otherwise PGlite (local dev)
@@ -32,8 +49,30 @@ if (process.env.DATABASE_URL || process.env.SQL_HOST) {
   });
   db = drizzlePg(pool, { schema });
 } else {
-  console.log('[DB] SQL_HOST/DATABASE_URL not set — using PGlite (local embedded Postgres)');
-  const client = new PGlite('./ifsc-local-data');
+  console.log('[DB] SQL_HOST/DATABASE_URL not set — using PGlite');
+  let dbPath = './ifsc-local-data';
+  
+  if (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.PORT) {
+    const tmpPath = '/tmp/ifsc-local-data';
+    if (!fs.existsSync(tmpPath)) {
+      try {
+        console.log('[DB] Serverless production detected. Copying pre-built PGlite database to /tmp...');
+        if (fs.existsSync(dbPath)) {
+          copyDirSync(dbPath, tmpPath);
+          console.log('[DB] PGlite copy to /tmp complete.');
+        } else {
+          console.warn('[DB] Source PGlite directory not found at:', dbPath);
+        }
+      } catch (err: any) {
+        console.error('[DB] Failed to copy PGlite database to /tmp:', err.message);
+      }
+    }
+    if (fs.existsSync(tmpPath)) {
+      dbPath = tmpPath;
+    }
+  }
+  
+  const client = new PGlite(dbPath);
   db = drizzlePglite(client as any, { schema } as any);
 }
 
