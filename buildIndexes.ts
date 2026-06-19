@@ -153,7 +153,7 @@ async function run() {
 
   // Write files
   fs.writeFileSync(path.join(publicDir, "states.json"), JSON.stringify(Array.from(statesSet).sort()));
-  
+
   const stateDistObj: Record<string, string[]> = {};
   for (const [s, dists] of stateToDistricts.entries()) {
     stateDistObj[s] = Array.from(dists).sort();

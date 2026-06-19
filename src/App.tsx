@@ -639,7 +639,8 @@ function HolidaysModal({ onClose }: { onClose: () => void }) {
   });
 
   const getDaysCountLeft = (targetDateStr: string) => {
-    const today = new Date('2026-06-17'); // June 17, 2026
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // normalize to start of today
     const target = new Date(targetDateStr);
     const diff = target.getTime() - today.getTime();
     return Math.ceil(diff / (1000 * 60 * 60 * 24));
@@ -676,7 +677,7 @@ function HolidaysModal({ onClose }: { onClose: () => void }) {
         <div className="px-6 py-3 bg-[#0F172A]/85 border-b border-white/[0.06] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 relative z-10 shrink-0">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-[#00C2FF] animate-pulse"></span>
-            <span className="text-xs font-semibold text-slate-200">Current Date: June 17, 2026 (Wednesday)</span>
+            <span className="text-xs font-semibold text-slate-200">Current Date: {new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
           </div>
           {nextHoliday && (
             <div className="text-xs text-[#94A3B8]">
@@ -1102,13 +1103,15 @@ export default function App() {
   const popularStates = ['Maharashtra', 'Gujarat', 'Karnataka', 'Delhi', 'Tamil Nadu'];
 
   function enrichDetails(data: IfscDetails) {
-    if(!data.SWIFT) data.SWIFT = "Not Available";
-    if(!data.BRANCH_CODE) data.BRANCH_CODE = data.IFSC.slice(-6);
-    if(!data.EMAIL) data.EMAIL = "care@"+data.BANKCODE.toLowerCase()+".co.in";
-    if(data.ATM === undefined) data.ATM = true;
-    if(data.CASH_DEPOSIT === undefined) data.CASH_DEPOSIT = true;
-    if(data.LOCKER === undefined) data.LOCKER = false;
-    return data;
+    // Non-mutating: spread to avoid modifying the original object from API/state
+    const d = { ...data };
+    if(!d.SWIFT) d.SWIFT = "Not Available";
+    if(!d.BRANCH_CODE) d.BRANCH_CODE = d.IFSC.slice(-6);
+    if(!d.EMAIL) d.EMAIL = "care@"+d.BANKCODE.toLowerCase()+".co.in";
+    if(d.ATM === undefined) d.ATM = true;
+    if(d.CASH_DEPOSIT === undefined) d.CASH_DEPOSIT = true;
+    if(d.LOCKER === undefined) d.LOCKER = false;
+    return d;
   }
 
   // API-driven cascading options

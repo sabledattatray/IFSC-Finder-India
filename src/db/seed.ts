@@ -76,21 +76,22 @@ async function run() {
     const cols = parseCsvLineCustom(line);
     if (cols.length < 6) continue;
     
-    const bankOriginal = cols[0] || "";
-    const ifsc = cols[1] || "";
-    const branch = cols[2] || "";
-    const address = cols[3] || "";
-    const pincode = cols[4] || "";
-    const state = cols[5] || "";
-    const districtOrig = cols[6] || "";
-    const contact = cols[7] || "";
-    const imps = (cols[8] || "").toUpperCase() === "TRUE";
-    const rtgs = (cols[9] || "").toUpperCase() === "TRUE";
-    const cityNew = cols[10] || "";
-    const neft = (cols[12] || "").toUpperCase() === "TRUE";
-    const micr = cols[13] || "";
-    const upi = (cols[14] || "").toUpperCase() === "TRUE";
-    const swift = cols[15] || "";
+    const bankOriginal = cols[0] || "";   // col 0: bank name
+    const ifsc = cols[1] || "";           // col 1: IFSC code
+    const branch = cols[2] || "";         // col 2: branch name
+    const address = cols[3] || "";        // col 3: address
+    const pincode = cols[4] || "";        // col 4: pincode
+    const state = cols[5] || "";          // col 5: state
+    const districtOrig = cols[6] || "";   // col 6: district
+    const contact = cols[7] || "";        // col 7: contact
+    const imps = (cols[8] || "").toUpperCase() === "TRUE";  // col 8: IMPS
+    const rtgs = (cols[9] || "").toUpperCase() === "TRUE";  // col 9: RTGS
+    const cityNew = cols[10] || "";       // col 10: city/village
+    const _col11 = cols[11] || "";        // col 11: (reserved/unused column - kept for index alignment)
+    const neft = (cols[12] || "").toUpperCase() === "TRUE"; // col 12: NEFT
+    const micr = cols[13] || "";          // col 13: MICR
+    const upi = (cols[14] || "").toUpperCase() === "TRUE";  // col 14: UPI
+    const swift = cols[15] || "";         // col 15: SWIFT
 
     const bankUp = bankOriginal.toUpperCase();
     const branchUp = branch.toUpperCase();
