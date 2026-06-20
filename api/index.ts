@@ -2,12 +2,17 @@ import express from "express";
 import serverless from "serverless-http";
 import path from "path";
 import { GoogleGenAI } from "@google/genai";
+
+console.log("[API] Importing database module...");
 import { db } from "../src/db/index.js";
+console.log("[API] Database module imported. Importing schema...");
 import { bankBranches } from "../src/db/schema.js";
+console.log("[API] Schema imported. Importing other modules...");
 import { eq, and, ilike, or, sql } from "drizzle-orm";
 import fs from "fs";
 import net from "net";
 
+console.log("[API] Modules imported. Creating express app...");
 const app = express();
 
 function getGeminiClient() {
@@ -42,8 +47,17 @@ function recToApi(rec: any) {
 
 app.use(express.json());
 
+app.get("/api/ping", (req, res) => {
+  res.send("pong");
+});
+
 app.get("/api/debug-status", async (req, res) => {
-  const isUsingPostgres = !!(process.env.DATABASE_URL || process.env.SQL_HOST);
+  const connectionString = process.env.DATABASE_URL || (
+    (process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.PORT)
+      ? "postgresql://postgres.pgmnnlufpfyrhgdzzuje:Dattatray%401511@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbounce=true"
+      : ""
+  );
+  const isUsingPostgres = !!(connectionString || process.env.SQL_HOST);
   let dbStatus = "Unknown";
   let rowCount = 0;
   let error = null;
@@ -82,9 +96,16 @@ app.get("/api/debug-status", async (req, res) => {
     });
   };
 
+  console.log("[Debug Status] Starting handler...");
   const host = "aws-1-ap-southeast-1.pooler.supabase.com";
+  
+  console.log("[Debug Status] Checking TCP port 6543...");
   const tcp6543 = await checkPort(6543, host);
+  console.log("[Debug Status] TCP 6543 result:", tcp6543);
+  
+  console.log("[Debug Status] Checking TCP port 5432...");
   const tcp5432 = await checkPort(5432, host);
+  console.log("[Debug Status] TCP 5432 result:", tcp5432);
 
   try {
     // Only query database if TCP port 6543 is accessible
@@ -116,7 +137,7 @@ app.get("/api/debug-status", async (req, res) => {
       port5432: tcp5432
     },
     geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
-    databaseUrlMasked: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]+@/, ":****@") : null,
+    databaseUrlMasked: connectionString ? connectionString.replace(/:[^:@]+@/, ":****@") : null,
     envKeys: Object.keys(process.env).filter(k => k.includes("DATABASE") || k.includes("SQL") || k.includes("GEMINI") || k.includes("VERCEL"))
   });
 });
@@ -362,4 +383,4 @@ Ground your answer carefully in Google Search results. If no bank branch exists 
 });
 
 export { app };
-export default serverless(app);
+export default app;

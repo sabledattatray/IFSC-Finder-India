@@ -4,6 +4,9 @@ import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import fs from 'fs';
 import path from 'path';
+import { createRequire } from 'module';
+
+console.log("[DB] Top-level initialization started. VERCEL:", process.env.VERCEL, "NODE_ENV:", process.env.NODE_ENV);
 
 function copyDirSync(src: string, dest: string) {
   fs.mkdirSync(dest, { recursive: true });
@@ -31,10 +34,14 @@ const connectionString = process.env.DATABASE_URL || (
     : ""
 );
 
+console.log("[DB] connectionString resolved. Length:", connectionString ? connectionString.length : 0);
+
 function getDbInstance() {
   if (activeDb) return activeDb;
 
+  console.log("[DB] getDbInstance initializing database connection...");
   if (connectionString || process.env.SQL_HOST) {
+    console.log("[DB] Selecting PostgreSQL connection path");
     const connectionParams = connectionString
       ? {
           connectionString,
@@ -53,25 +60,37 @@ function getDbInstance() {
           max: 1,
         };
 
-    pool = new Pool(connectionParams);
-    pool.on('error', (err: Error) => {
-      console.error('Unexpected error on idle SQL pool client:', err);
-    });
-    activeDb = drizzlePg(pool, { schema });
+    try {
+      pool = new Pool(connectionParams);
+      pool.on('error', (err: Error) => {
+        console.error('Unexpected error on idle SQL pool client:', err);
+      });
+      activeDb = drizzlePg(pool, { schema });
+      console.log("[DB] PostgreSQL Pool and Drizzle instance created successfully");
+    } catch (e: any) {
+      console.error("[DB] Failed to create PostgreSQL instance:", e);
+      throw e;
+    }
   } else {
-    console.log('[DB] SQL_HOST/DATABASE_URL not set — using PGlite');
-    const { createRequire } = require('module');
-    const localRequire = createRequire(import.meta.url);
-    const { PGlite } = localRequire('@electric-sql/pglite');
-    const { drizzle: drizzlePglite } = localRequire('drizzle-orm/pglite');
-    const client = new PGlite('./ifsc-local-data');
-    activeDb = drizzlePglite(client as any, { schema } as any);
+    console.log('[DB] SQL_HOST/DATABASE_URL not set — using PGlite path');
+    try {
+      const localRequire = createRequire(import.meta.url);
+      const { PGlite } = localRequire('@electric-sql/pglite');
+      const { drizzle: drizzlePglite } = localRequire('drizzle-orm/pglite');
+      const client = new PGlite('./ifsc-local-data');
+      activeDb = drizzlePglite(client as any, { schema } as any);
+      console.log("[DB] PGlite client and Drizzle instance created successfully");
+    } catch (e: any) {
+      console.error("[DB] Failed to initialize PGlite:", e);
+      throw e;
+    }
   }
   return activeDb;
 }
 
 export const db = new Proxy({} as any, {
   get(target, prop) {
+    console.log("[DB Proxy] Property accessed:", String(prop));
     const instance = getDbInstance();
     const value = Reflect.get(instance, prop);
     return typeof value === 'function' ? value.bind(instance) : value;

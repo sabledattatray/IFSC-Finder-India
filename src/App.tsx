@@ -1286,7 +1286,7 @@ function AppContent() {
     }
     fetch(`/api/branches?state=${encodeURIComponent(selState)}&district=${encodeURIComponent(selDistrict)}&taluka=${encodeURIComponent(selTaluka)}&city=${encodeURIComponent(selCity)}&bank=${encodeURIComponent(selBank)}`)
       .then(res => res.json())
-      .then(data => setBranchOptions(data))
+      .then(data => setBranchOptions((data || []).map((b: any) => ({ branchName: b.BRANCH, ifsc: b.IFSC }))))
       .catch(err => console.error("Error loading branches:", err));
   }, [selBank, selState, selDistrict, selTaluka, selCity]);
 
