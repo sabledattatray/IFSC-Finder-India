@@ -1061,6 +1061,7 @@ function AppContent() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+  const lastSearchedRef = useRef<{ query: string; mode: SearchMode } | null>(null);
 
   const [currentPage, setCurrentPageState] = useState<'home' | 'search' | 'blogs' | 'blog-detail' | 'privacy' | 'terms' | 'disclaimer'>('home');
   const [selectedBlogSlug, setSelectedBlogSlugState] = useState<string | null>(null);
@@ -1349,6 +1350,12 @@ function AppContent() {
     const query = (searchQuery || queryInput).trim().toUpperCase();
     const currentMode = forceMode || searchMode;
     if (!query && currentMode !== 'location') return;
+
+    // Prevent infinite search loop from useEffect URL param watcher
+    if (!e && lastSearchedRef.current?.query === query && lastSearchedRef.current?.mode === currentMode) {
+      return;
+    }
+    lastSearchedRef.current = { query, mode: currentMode };
 
     if (currentMode !== 'location') {
       setQueryInput(query);
