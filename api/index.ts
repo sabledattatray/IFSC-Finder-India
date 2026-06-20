@@ -47,14 +47,44 @@ app.get("/api/debug-status", async (req, res) => {
   let rowCount = 0;
   let error = null;
 
+  // Perform quick TCP checks to diagnose connection issues
+  const checkPort = (port: number, host: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const socket = require("net").connect(port, host);
+      socket.setTimeout(2500);
+      socket.on("connect", () => {
+        socket.destroy();
+        resolve("Connected successfully");
+      });
+      socket.on("timeout", () => {
+        socket.destroy();
+        resolve("Connection timed out after 2.5s");
+      });
+      socket.on("error", (err: any) => {
+        socket.destroy();
+        resolve(`Connection failed: ${err.message}`);
+      });
+    });
+  };
+
+  const host = "aws-1-ap-southeast-1.pooler.supabase.com";
+  const tcp6543 = await checkPort(6543, host);
+  const tcp5432 = await checkPort(5432, host);
+
   try {
-    const countPromise = db.select({ count: sql`COUNT(*)` }).from(bankBranches);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error("Database query timed out after 3 seconds")), 3000)
-    );
-    const result = await Promise.race([countPromise, timeoutPromise]) as any;
-    rowCount = Number(result[0]?.count || 0);
-    dbStatus = "Connected";
+    // Only query database if TCP port 6543 is accessible
+    if (tcp6543 === "Connected successfully") {
+      const countPromise = db.select({ count: sql`COUNT(*)` }).from(bankBranches);
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Database query timed out after 3 seconds")), 3000)
+      );
+      const result = await Promise.race([countPromise, timeoutPromise]) as any;
+      rowCount = Number(result[0]?.count || 0);
+      dbStatus = "Connected";
+    } else {
+      dbStatus = "TCP Port Blocked";
+      error = `Cannot query database because port 6543 is not accessible: ${tcp6543}`;
+    }
   } catch (err: any) {
     dbStatus = "Error";
     error = err.message;
@@ -65,6 +95,11 @@ app.get("/api/debug-status", async (req, res) => {
     connectionStatus: dbStatus,
     rowCount: rowCount,
     error: error,
+    tcpDiagnostics: {
+      host,
+      port6543: tcp6543,
+      port5432: tcp5432
+    },
     geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
     databaseUrlMasked: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]+@/, ":****@") : null,
     envKeys: Object.keys(process.env).filter(k => k.includes("DATABASE") || k.includes("SQL") || k.includes("GEMINI") || k.includes("VERCEL"))
