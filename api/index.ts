@@ -6,6 +6,7 @@ import { db } from "../src/db/index.js";
 import { bankBranches } from "../src/db/schema.js";
 import { eq, and, ilike, or, sql } from "drizzle-orm";
 import fs from "fs";
+import net from "net";
 
 const app = express();
 
@@ -51,7 +52,7 @@ app.get("/api/debug-status", async (req, res) => {
   const checkPort = (port: number, host: string): Promise<string> => {
     return new Promise((resolve) => {
       let resolved = false;
-      const socket = require("net").connect(port, host);
+      const socket = net.connect(port, host);
       
       const timer = setTimeout(() => {
         if (!resolved) {

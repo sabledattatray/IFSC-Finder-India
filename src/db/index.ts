@@ -2,9 +2,6 @@ import * as schema from './schema.js';
 import dotenv from 'dotenv';
 import { drizzle as drizzlePg } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
-import { PGlite } from '@electric-sql/pglite';
-import { drizzle as drizzlePglite } from 'drizzle-orm/pglite';
-
 import fs from 'fs';
 import path from 'path';
 
@@ -60,6 +57,8 @@ if (connectionString || process.env.SQL_HOST) {
   db = drizzlePg(pool, { schema });
 } else {
   console.log('[DB] SQL_HOST/DATABASE_URL not set — using PGlite');
+  const { PGlite } = await import('@electric-sql/pglite');
+  const { drizzle: drizzlePglite } = await import('drizzle-orm/pglite');
   const client = new PGlite('./ifsc-local-data');
   db = drizzlePglite(client as any, { schema } as any);
 }
