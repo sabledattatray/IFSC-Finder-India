@@ -1529,9 +1529,10 @@ function AppContent() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const openMaps = (resultNode = result) => {
-    if (resultNode) {
-      const query = encodeURIComponent(`${resultNode.BANK} ${resultNode.BRANCH} ${resultNode.CITY} ${resultNode.STATE}`);
+  const openMaps = (resultNode: any = null) => {
+    const targetNode = (resultNode && typeof resultNode === 'object' && 'BANK' in resultNode) ? resultNode : result;
+    if (targetNode) {
+      const query = encodeURIComponent(`${targetNode.BANK} ${targetNode.BRANCH} ${targetNode.CITY} ${targetNode.STATE}`);
       window.open(`https://www.google.com/maps/search/?api=1&query=${query}`, '_blank');
     }
   };
@@ -2368,7 +2369,7 @@ function AppContent() {
                         <button onClick={() => toggleFavorite(result.IFSC)} className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 border transition-all ${favorites.includes(result.IFSC) ? 'bg-amber-400/10 border-amber-400/30 text-amber-400' : 'bg-white/[0.04] border-white/[0.08] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white'}`}>
                           <Star className="w-3.5 h-3.5" fill={favorites.includes(result.IFSC) ? 'currentColor' : 'none'}/> {favorites.includes(result.IFSC) ? 'Saved' : 'Save'}
                         </button>
-                        <button onClick={openMaps} className="px-3 py-2 rounded-xl font-bold text-xs btn-primary flex items-center gap-1.5 transition-all">
+                        <button onClick={() => openMaps()} className="px-3 py-2 rounded-xl font-bold text-xs btn-primary flex items-center gap-1.5 transition-all">
                           <MapPin className="w-3.5 h-3.5"/> Map
                         </button>
                         <button 
