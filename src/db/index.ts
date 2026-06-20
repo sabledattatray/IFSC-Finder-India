@@ -39,14 +39,18 @@ if (connectionString || process.env.SQL_HOST) {
     ? {
         connectionString,
         ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 15000,
+        connectionTimeoutMillis: 5000,
+        family: 4,
+        max: 1,
       }
     : {
         host: process.env.SQL_HOST,
         user: process.env.SQL_USER,
         password: process.env.SQL_PASSWORD,
         database: process.env.SQL_DB_NAME,
-        connectionTimeoutMillis: 15000,
+        connectionTimeoutMillis: 5000,
+        family: 4,
+        max: 1,
       };
 
   pool = new Pool(connectionParams);

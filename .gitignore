@@ -7,3 +7,4 @@ coverage/
 .env*
 !.env.example
 ifsc-local-data/ 
+.vercel

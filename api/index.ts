@@ -48,7 +48,11 @@ app.get("/api/debug-status", async (req, res) => {
   let error = null;
 
   try {
-    const result = await db.select({ count: sql`COUNT(*)` }).from(bankBranches);
+    const countPromise = db.select({ count: sql`COUNT(*)` }).from(bankBranches);
+    const timeoutPromise = new Promise((_, reject) => 
+      setTimeout(() => reject(new Error("Database query timed out after 3 seconds")), 3000)
+    );
+    const result = await Promise.race([countPromise, timeoutPromise]) as any;
     rowCount = Number(result[0]?.count || 0);
     dbStatus = "Connected";
   } catch (err: any) {
@@ -62,6 +66,7 @@ app.get("/api/debug-status", async (req, res) => {
     rowCount: rowCount,
     error: error,
     geminiKeyConfigured: !!process.env.GEMINI_API_KEY,
+    databaseUrlMasked: process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:[^:@]+@/, ":****@") : null,
     envKeys: Object.keys(process.env).filter(k => k.includes("DATABASE") || k.includes("SQL") || k.includes("GEMINI") || k.includes("VERCEL"))
   });
 });
