@@ -50,19 +50,33 @@ app.get("/api/debug-status", async (req, res) => {
   // Perform quick TCP checks to diagnose connection issues
   const checkPort = (port: number, host: string): Promise<string> => {
     return new Promise((resolve) => {
+      let resolved = false;
       const socket = require("net").connect(port, host);
-      socket.setTimeout(2500);
+      
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          socket.destroy();
+          resolve("Connection timed out after 2.5s (establishment)");
+        }
+      }, 2500);
+
       socket.on("connect", () => {
-        socket.destroy();
-        resolve("Connected successfully");
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          socket.destroy();
+          resolve("Connected successfully");
+        }
       });
-      socket.on("timeout", () => {
-        socket.destroy();
-        resolve("Connection timed out after 2.5s");
-      });
+
       socket.on("error", (err: any) => {
-        socket.destroy();
-        resolve(`Connection failed: ${err.message}`);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timer);
+          socket.destroy();
+          resolve(`Connection failed: ${err.message}`);
+        }
       });
     });
   };
