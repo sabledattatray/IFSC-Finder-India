@@ -22,7 +22,7 @@ function copyDirSync(src: string, dest: string) {
 dotenv.config();
 
 // Use PostgreSQL (production) when SQL_HOST or DATABASE_URL is set, otherwise PGlite (local dev)
-let db: any;
+let activeDb: any = null;
 let pool: any = null;
 
 const connectionString = process.env.DATABASE_URL || (
@@ -31,37 +31,52 @@ const connectionString = process.env.DATABASE_URL || (
     : ""
 );
 
-if (connectionString || process.env.SQL_HOST) {
-  const connectionParams = connectionString
-    ? {
-        connectionString,
-        ssl: { rejectUnauthorized: false },
-        connectionTimeoutMillis: 5000,
-        family: 4,
-        max: 1,
-      }
-    : {
-        host: process.env.SQL_HOST,
-        user: process.env.SQL_USER,
-        password: process.env.SQL_PASSWORD,
-        database: process.env.SQL_DB_NAME,
-        connectionTimeoutMillis: 5000,
-        family: 4,
-        max: 1,
-      };
+function getDbInstance() {
+  if (activeDb) return activeDb;
 
-  pool = new Pool(connectionParams);
-  pool.on('error', (err: Error) => {
-    console.error('Unexpected error on idle SQL pool client:', err);
-  });
-  db = drizzlePg(pool, { schema });
-} else {
-  console.log('[DB] SQL_HOST/DATABASE_URL not set — using PGlite');
-  const { PGlite } = await import('@electric-sql/pglite');
-  const { drizzle: drizzlePglite } = await import('drizzle-orm/pglite');
-  const client = new PGlite('./ifsc-local-data');
-  db = drizzlePglite(client as any, { schema } as any);
+  if (connectionString || process.env.SQL_HOST) {
+    const connectionParams = connectionString
+      ? {
+          connectionString,
+          ssl: { rejectUnauthorized: false },
+          connectionTimeoutMillis: 5000,
+          family: 4,
+          max: 1,
+        }
+      : {
+          host: process.env.SQL_HOST,
+          user: process.env.SQL_USER,
+          password: process.env.SQL_PASSWORD,
+          database: process.env.SQL_DB_NAME,
+          connectionTimeoutMillis: 5000,
+          family: 4,
+          max: 1,
+        };
+
+    pool = new Pool(connectionParams);
+    pool.on('error', (err: Error) => {
+      console.error('Unexpected error on idle SQL pool client:', err);
+    });
+    activeDb = drizzlePg(pool, { schema });
+  } else {
+    console.log('[DB] SQL_HOST/DATABASE_URL not set — using PGlite');
+    const { createRequire } = require('module');
+    const localRequire = createRequire(import.meta.url);
+    const { PGlite } = localRequire('@electric-sql/pglite');
+    const { drizzle: drizzlePglite } = localRequire('drizzle-orm/pglite');
+    const client = new PGlite('./ifsc-local-data');
+    activeDb = drizzlePglite(client as any, { schema } as any);
+  }
+  return activeDb;
 }
 
-export { db, pool };
+export const db = new Proxy({} as any, {
+  get(target, prop) {
+    const instance = getDbInstance();
+    const value = Reflect.get(instance, prop);
+    return typeof value === 'function' ? value.bind(instance) : value;
+  }
+});
+
+export { pool };
 export const createPool = () => pool;
